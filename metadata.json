@@ -3,5 +3,6 @@
   "description": "An innovative application for diabetes management that acts as a personal assistant. It features AI-powered food analysis, a community for sharing safe recipes, and an intelligent insulin stock management system.",
   "requestFramePermissions": [
     "camera"
-  ]
+  ],
+  "majorCapabilities": []
 }
