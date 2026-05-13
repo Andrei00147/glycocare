@@ -2,13 +2,19 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, FoodAnalysisResult } from '../types';
 
-const API_KEY = process.env.API_KEY;
+let genAI: GoogleGenAI | null = null;
 
-if (!API_KEY) {
-  throw new Error("API_KEY environment variable is not set.");
+function getAI() {
+  if (!genAI) {
+    const API_KEY = process.env.GEMINI_API_KEY || process.env.API_KEY;
+    if (!API_KEY) {
+      console.error("GEMINI_API_KEY is not set. AI features will be unavailable.");
+      return null;
+    }
+    genAI = new GoogleGenAI(API_KEY);
+  }
+  return genAI;
 }
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 function fileToGenerativePart(base64: string, mimeType: string) {
   return {
@@ -19,33 +25,23 @@ function fileToGenerativePart(base64: string, mimeType: string) {
   };
 }
 
+const MODEL_NAME = "gemini-2.0-flash";
+
 export const analyzeFoodImage = async (
   base64Image: string,
   mimeType: string,
   userProfile: UserProfile
 ): Promise<FoodAnalysisResult> => {
+  const ai = getAI();
+  if (!ai) {
+    throw new Error("Serviço de IA não configurado. Verifique a chave de API.");
+  }
+
   try {
     const imagePart = fileToGenerativePart(base64Image, mimeType);
-    const prompt = `
-      Analise a imagem deste alimento. Com base no perfil do usuário diabético fornecido, retorne um objeto JSON.
-
-      Perfil do Usuário:
-      - Tipo de Diabetes: ${userProfile.diabetesType}
-      - Faixa Glicêmica Alvo: ${userProfile.glucoseTargetMin}-${userProfile.glucoseTargetMax} mg/dL
-
-      Sua tarefa é:
-      1. Identificar os principais itens alimentares na imagem.
-      2. Estimar a quantidade total de carboidratos (g), calorias (kcal), açúcares (g), gorduras (fats, g) e proteínas (proteins, g).
-      3. Criar um "Alerta Inteligente" (smartAlert) empático e útil. O alerta deve ser personalizado com base nos alimentos identificados e no perfil do usuário. Por exemplo, se o alimento tiver alto índice glicêmico, dê um aviso amigável. Se for um doce, sugira moderação e monitoramento da glicose.
-      4. Fornecer um "Conselho de Horário da Refeição" (mealTimingAdvice). Este conselho deve sugerir o melhor momento para consumir este alimento (ex: "Ideal após exercícios", "Melhor consumir no almoço para ter tempo de gastar a energia", "Evitar perto da hora de dormir devido ao alto teor de gordura") com base em seu impacto glicêmico e nutricional e nas metas do usuário.
-
-      Responda APENAS com o objeto JSON, sem nenhum texto ou formatação adicional.
-    `;
-    
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [{ parts: [imagePart, { text: prompt }] }],
-        config: {
+    const model = ai.getGenerativeModel({
+        model: MODEL_NAME,
+        generationConfig: {
             responseMimeType: "application/json",
             responseSchema: {
                 type: Type.OBJECT,
@@ -68,9 +64,26 @@ export const analyzeFoodImage = async (
         }
     });
 
-    const jsonText = response.text;
-    const result = JSON.parse(jsonText);
-    return result as FoodAnalysisResult;
+    const prompt = `
+      Analise a imagem deste alimento. Com base no perfil do usuário diabético fornecido, retorne um objeto JSON.
+
+      Perfil do Usuário:
+      - Tipo de Diabetes: ${userProfile.diabetesType}
+      - Faixa Glicêmica Alvo: ${userProfile.glucoseTargetMin}-${userProfile.glucoseTargetMax} mg/dL
+
+      Sua tarefa é:
+      1. Identificar os principais itens alimentares na imagem.
+      2. Estimar a quantidade total de carboidratos (g), calorias (kcal), açúcares (g), gorduras (fats, g) e proteínas (proteins, g).
+      3. Criar um "Alerta Inteligente" (smartAlert) empático e útil. O alerta deve ser personalizado com base nos alimentos identificados e no perfil do usuário. Por exemplo, se o alimento tiver alto índice glicêmico, dê um aviso amigável. Se for um doce, sugira moderação e monitoramento da glicose.
+      4. Fornecer um "Conselho de Horário da Refeição" (mealTimingAdvice). Este conselho deve sugerir o melhor momento para consumir este alimento (ex: "Ideal após exercícios", "Melhor consumir no almoço para ter tempo de gastar a energia", "Evitar perto da hora de dormir devido ao alto teor de gordura") com base em seu impacto glicêmico e nutricional e nas metas do usuário.
+
+      Responda APENAS com o objeto JSON, sem nenhum texto ou formatação adicional.
+    `;
+    
+    const result = await model.generateContent([imagePart, prompt]);
+    const response = await result.response;
+    const text = response.text();
+    return JSON.parse(text) as FoodAnalysisResult;
   } catch (error) {
     console.error("Error analyzing food image with Gemini:", error);
     throw new Error("Não foi possível analisar a imagem. Tente novamente.");
@@ -80,7 +93,27 @@ export const analyzeFoodImage = async (
 export const calculateRecipeNutrition = async (
     ingredients: string
 ): Promise<{carbohydrates: number, calories: number}> => {
+    const ai = getAI();
+    if (!ai) {
+      throw new Error("Serviço de IA não configurado. Verifique a chave de API.");
+    }
+
     try {
+        const model = ai.getGenerativeModel({
+            model: MODEL_NAME,
+            generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        carbohydrates: { type: Type.NUMBER, description: 'Total de carboidratos em gramas.' },
+                        calories: { type: Type.NUMBER, description: 'Total de calorias (kcal).' }
+                    },
+                    required: ["carbohydrates", "calories"]
+                }
+            }
+        });
+
         const prompt = `
             Analise esta lista de ingredientes de uma receita e estime o valor nutricional total.
             
@@ -95,33 +128,19 @@ export const calculateRecipeNutrition = async (
             Responda APENAS com o objeto JSON, sem nenhum texto ou formatação adicional.
         `;
         
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: [{ parts: [{ text: prompt }] }],
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        carbohydrates: { type: Type.NUMBER, description: 'Total de carboidratos em gramas.' },
-                        calories: { type: Type.NUMBER, description: 'Total de calorias (kcal).' }
-                    },
-                    required: ["carbohydrates", "calories"]
-                }
-            }
-        });
-
-        const jsonText = response.text;
-        const result = JSON.parse(jsonText);
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        const data = JSON.parse(text);
         
-        if(typeof result.carbohydrates !== 'number' || typeof result.calories !== 'number') {
+        if(typeof data.carbohydrates !== 'number' || typeof data.calories !== 'number') {
             throw new Error("A resposta da IA não continha os dados esperados.");
         }
         
-        return result;
+        return data;
 
     } catch (error) {
         console.error("Error calculating recipe nutrition with Gemini:", error);
         throw new Error("Não foi possível calcular os dados nutricionais. Verifique os ingredientes e tente novamente.");
     }
-}
+};
