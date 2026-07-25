@@ -6,7 +6,7 @@ import StockManagement from './components/StockManagement';
 import CommunityRecipes from './components/CommunityRecipes';
 import Settings from './components/Settings';
 import Feedback from './components/Feedback';
-import { UserProfile, View, Recipe, Reminder, GlucoseReading } from './types';
+import { UserProfile, View, Recipe, Reminder, GlucoseReading, MealLog } from './types';
 import {
   loadUserProfile,
   saveUserProfile,
@@ -14,6 +14,8 @@ import {
   saveGlucoseReadings,
   loadRecipes,
   saveRecipes,
+  loadMealLogs,
+  saveMealLogs,
 } from './services/storageService';
 
 const initialRecipes: Recipe[] = [
@@ -144,6 +146,7 @@ const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(() => loadUserProfile());
   const [recipes, setRecipes] = useState<Recipe[]>(() => loadRecipes(initialRecipes));
   const [glucoseReadings, setGlucoseReadings] = useState<GlucoseReading[]>(() => loadGlucoseReadings());
+  const [mealLogs, setMealLogs] = useState<MealLog[]>(() => loadMealLogs());
   const [currentView, setCurrentView] = useState<View>(() => {
     return loadUserProfile() ? View.Dashboard : View.Onboarding;
   });
@@ -179,6 +182,10 @@ const App: React.FC = () => {
     saveRecipes(recipes);
   }, [recipes]);
 
+  useEffect(() => {
+    saveMealLogs(mealLogs);
+  }, [mealLogs]);
+
   const toggleTheme = () => {
       setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
@@ -200,6 +207,24 @@ const App: React.FC = () => {
     setGlucoseReadings(prev => [...prev, newReading].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
   };
 
+  const handleAddMealLog = (carbohydrates: number, sugars: number, name?: string, proteins?: number, fats?: number, calories?: number) => {
+    const newLog: MealLog = {
+      id: String(Date.now()),
+      name: name || 'Refeição Registrada',
+      carbohydrates,
+      sugars,
+      proteins: proteins || 0,
+      fats: fats || 0,
+      calories: calories || 0,
+      timestamp: new Date()
+    };
+    setMealLogs(prev => [...prev, newLog]);
+  };
+
+  const handleRemoveMealLog = (id: string) => {
+    setMealLogs(prev => prev.filter(m => m.id !== id));
+  };
+
   const handleAddRecipe = (newRecipeData: Omit<Recipe, 'id' | 'author'>) => {
     if (!userProfile) return;
     const newRecipe: Recipe = {
@@ -210,16 +235,18 @@ const App: React.FC = () => {
     setRecipes(prev => [newRecipe, ...prev]);
   };
 
-  const handleRestoreData = (data: { userProfile: UserProfile | null; glucoseReadings: GlucoseReading[]; recipes: Recipe[] }) => {
+  const handleRestoreData = (data: { userProfile: UserProfile | null; glucoseReadings: GlucoseReading[]; recipes: Recipe[]; mealLogs?: MealLog[] }) => {
     if (data.userProfile) setUserProfile(data.userProfile);
     if (data.glucoseReadings) setGlucoseReadings(data.glucoseReadings);
     if (data.recipes) setRecipes(data.recipes);
+    if (data.mealLogs) setMealLogs(data.mealLogs);
   };
 
   const handleResetData = () => {
     setUserProfile(null);
     setGlucoseReadings([]);
     setRecipes(initialRecipes);
+    setMealLogs([]);
     setCurrentView(View.Onboarding);
   };
 
@@ -232,7 +259,20 @@ const App: React.FC = () => {
       case View.Onboarding:
         return <Onboarding onComplete={handleOnboardingComplete} />;
       case View.Dashboard:
-        return userProfile ? <Dashboard userProfile={userProfile} updateUserProfile={handleUpdateProfile} navigateTo={navigateTo} glucoseReadings={glucoseReadings} onAddGlucoseReading={handleAddGlucoseReading} theme={theme} toggleTheme={toggleTheme} /> : <Onboarding onComplete={handleOnboardingComplete} />;
+        return userProfile ? (
+          <Dashboard
+            userProfile={userProfile}
+            updateUserProfile={handleUpdateProfile}
+            navigateTo={navigateTo}
+            glucoseReadings={glucoseReadings}
+            onAddGlucoseReading={handleAddGlucoseReading}
+            mealLogs={mealLogs}
+            onAddMealLog={handleAddMealLog}
+            onRemoveMealLog={handleRemoveMealLog}
+            theme={theme}
+            toggleTheme={toggleTheme}
+          />
+        ) : <Onboarding onComplete={handleOnboardingComplete} />;
       case View.Reports:
          return userProfile ? <Reports userProfile={userProfile} glucoseReadings={glucoseReadings} onBack={() => navigateTo(View.Dashboard)} /> : <Onboarding onComplete={handleOnboardingComplete} />;
       case View.StockManagement:

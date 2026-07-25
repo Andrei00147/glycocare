@@ -1,9 +1,10 @@
-import { UserProfile, GlucoseReading, Recipe, View } from '../types';
+import { UserProfile, GlucoseReading, Recipe, MealLog, View } from '../types';
 
 const STORAGE_KEYS = {
   USER_PROFILE: 'glycocare_user_profile',
   GLUCOSE_READINGS: 'glycocare_glucose_readings',
   CUSTOM_RECIPES: 'glycocare_recipes',
+  MEAL_LOGS: 'glycocare_meal_logs',
   LAST_VIEW: 'glycocare_last_view',
   LAST_SYNC: 'glycocare_last_sync',
 };
@@ -14,6 +15,7 @@ export interface AppDataBackup {
   userProfile: UserProfile | null;
   glucoseReadings: GlucoseReading[];
   recipes: Recipe[];
+  mealLogs?: MealLog[];
 }
 
 export const saveUserProfile = (profile: UserProfile | null): void => {
@@ -92,13 +94,56 @@ export const loadRecipes = (defaultRecipes: Recipe[]): Recipe[] => {
   }
 };
 
-export const exportDataBackup = (userProfile: UserProfile | null, glucoseReadings: GlucoseReading[], recipes: Recipe[]): void => {
+export const saveMealLogs = (logs: MealLog[]): void => {
+  try {
+    const formatted = logs.map(l => ({
+      ...l,
+      timestamp: l.timestamp instanceof Date ? l.timestamp.toISOString() : l.timestamp
+    }));
+    localStorage.setItem(STORAGE_KEYS.MEAL_LOGS, JSON.stringify(formatted));
+    localStorage.setItem(STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
+  } catch (err) {
+    console.error('Failed to save meal logs to storage:', err);
+  }
+};
+
+export const loadMealLogs = (): MealLog[] => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.MEAL_LOGS);
+    if (!data) return [];
+    const parsed = JSON.parse(data);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item: any) => ({
+        id: item.id || String(Date.now()),
+        name: item.name || 'Refeição Registrada',
+        carbohydrates: Number(item.carbohydrates || 0),
+        sugars: Number(item.sugars || 0),
+        proteins: Number(item.proteins || 0),
+        fats: Number(item.fats || 0),
+        calories: Number(item.calories || 0),
+        timestamp: new Date(item.timestamp)
+      }));
+    }
+    return [];
+  } catch (err) {
+    console.error('Failed to load meal logs from storage:', err);
+    return [];
+  }
+};
+
+export const exportDataBackup = (
+  userProfile: UserProfile | null,
+  glucoseReadings: GlucoseReading[],
+  recipes: Recipe[],
+  mealLogs?: MealLog[]
+): void => {
   const backup: AppDataBackup = {
     version: 1,
     exportedAt: new Date().toISOString(),
     userProfile,
     glucoseReadings,
     recipes,
+    mealLogs: mealLogs || loadMealLogs()
   };
 
   const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(backup, null, 2))}`;
@@ -133,6 +178,20 @@ export const importDataBackup = (jsonString: string): AppDataBackup => {
     saveRecipes(parsed.recipes);
   }
 
+  if (Array.isArray(parsed.mealLogs)) {
+    const restoredLogs = parsed.mealLogs.map(m => ({
+      id: m.id || String(Date.now()),
+      name: m.name || 'Refeição Registrada',
+      carbohydrates: Number(m.carbohydrates || 0),
+      sugars: Number(m.sugars || 0),
+      proteins: Number(m.proteins || 0),
+      fats: Number(m.fats || 0),
+      calories: Number(m.calories || 0),
+      timestamp: new Date(m.timestamp)
+    }));
+    saveMealLogs(restoredLogs);
+  }
+
   return parsed;
 };
 
@@ -140,6 +199,7 @@ export const clearAllData = (): void => {
   localStorage.removeItem(STORAGE_KEYS.USER_PROFILE);
   localStorage.removeItem(STORAGE_KEYS.GLUCOSE_READINGS);
   localStorage.removeItem(STORAGE_KEYS.CUSTOM_RECIPES);
+  localStorage.removeItem(STORAGE_KEYS.MEAL_LOGS);
   localStorage.removeItem(STORAGE_KEYS.LAST_VIEW);
   localStorage.removeItem(STORAGE_KEYS.LAST_SYNC);
 };

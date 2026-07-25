@@ -1,4 +1,6 @@
 export enum DiabetesType {
+  None = "Não tenho diabetes (Saúde & Prevenção)",
+  PreDiabetes = "Pré-diabetes",
   Type1 = "Tipo 1",
   Type2 = "Tipo 2",
   Gestational = "Gestacional",
@@ -31,10 +33,25 @@ export interface MedicationReminder {
   isActive: boolean;
 }
 
+export interface BioimpedanceData {
+  date?: string;
+  bodyFatPercentage?: number; // %
+  muscleMassKg?: number; // kg de massa magra/muscular
+  visceralFatLevel?: number; // nível 1-59
+  basalMetabolicRateKcal?: number; // TMB em kcal
+  waterPercentage?: number; // % de água corporal
+  professionalName?: string; // Nome do Nutricionista / Médico
+  professionalNotes?: string; // Observações e orientações do profissional
+}
+
 export interface UserProfile {
   name: string;
   diabetesType: DiabetesType;
-  diagnosisDate: string;
+  weightKg?: number;
+  heightCm?: number;
+  healthGoal?: string; // e.g. "Prevenção de Diabetes", "Perda de Peso", "Controle de Açúcar", "Ganho Muscular", "Saúde e Bem-Estar"
+  bioimpedance?: BioimpedanceData;
+  diagnosisDate?: string;
   useInsulin: boolean;
   insulinType?: string;
   dailyDoses?: number;
@@ -48,7 +65,7 @@ export interface UserProfile {
   insulinUnitsPerPen?: number;
   averageDailyUnits?: number;
   currentInsulinStockUnits?: number;
-  insulinStockThreshold?: number; // This can now be deprecated in favor of dynamic calculation
+  insulinStockThreshold?: number;
   reminders: Reminder[];
   remindersGloballyActive: boolean;
   theme: 'light' | 'dark';
@@ -95,4 +112,22 @@ export interface Recipe {
   carbohydrates: number;
   calories: number;
   externalLink?: string;
+}
+
+export interface MealLog {
+  id: string;
+  name?: string;
+  carbohydrates: number;
+  sugars: number;
+  proteins?: number;
+  fats?: number;
+  calories?: number;
+  timestamp: Date;
+}
+
+export interface GoalEvaluationResult {
+  status: 'positive' | 'warning' | 'neutral';
+  scoreTitle: string;
+  detailedFeedback: string;
+  suggestedNextStep: string;
 }

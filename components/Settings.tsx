@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { UserProfile, Reminder, View, MedicationReminder, GlucoseReading, Recipe } from '../types';
+import { UserProfile, Reminder, View, MedicationReminder, GlucoseReading, Recipe, DiabetesType } from '../types';
 import { exportDataBackup, importDataBackup, clearAllData, getLastSyncTime } from '../services/storageService';
 
 interface SettingsProps {
@@ -28,11 +28,53 @@ const Settings: React.FC<SettingsProps> = ({
     const [backupMsg, setBackupMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Profile physical metrics state
+    const [name, setName] = useState(userProfile.name || '');
+    const [diabetesType, setDiabetesType] = useState<DiabetesType>(userProfile.diabetesType || DiabetesType.None);
+    const [weightKg, setWeightKg] = useState<string>(userProfile.weightKg ? String(userProfile.weightKg) : '');
+    const [heightCm, setHeightCm] = useState<string>(userProfile.heightCm ? String(userProfile.heightCm) : '');
+    const [healthGoal, setHealthGoal] = useState<string>(userProfile.healthGoal || 'Prevenção de Diabetes & Saúde');
+    const [profileSavedMsg, setProfileSavedMsg] = useState(false);
+
+    // Bioimpedance state
+    const bio = userProfile.bioimpedance || {};
+    const [bioDate, setBioDate] = useState<string>(bio.date || new Date().toISOString().split('T')[0]);
+    const [bodyFatPercentage, setBodyFatPercentage] = useState<string>(bio.bodyFatPercentage !== undefined ? String(bio.bodyFatPercentage) : '');
+    const [muscleMassKg, setMuscleMassKg] = useState<string>(bio.muscleMassKg !== undefined ? String(bio.muscleMassKg) : '');
+    const [visceralFatLevel, setVisceralFatLevel] = useState<string>(bio.visceralFatLevel !== undefined ? String(bio.visceralFatLevel) : '');
+    const [basalMetabolicRateKcal, setBasalMetabolicRateKcal] = useState<string>(bio.basalMetabolicRateKcal !== undefined ? String(bio.basalMetabolicRateKcal) : '');
+    const [waterPercentage, setWaterPercentage] = useState<string>(bio.waterPercentage !== undefined ? String(bio.waterPercentage) : '');
+    const [professionalName, setProfessionalName] = useState<string>(bio.professionalName || '');
+    const [professionalNotes, setProfessionalNotes] = useState<string>(bio.professionalNotes || '');
+
     // State for adding new reminders
     const [newReminderName, setNewReminderName] = useState('');
     const [newReminderTime, setNewReminderTime] = useState('09:00');
     
     const [newMedReminder, setNewMedReminder] = useState({ medicationName: '', time: '08:00', dose: '1 comprimido'});
+
+    const handleSavePhysicalProfile = (e: React.FormEvent) => {
+        e.preventDefault();
+        onUpdateProfile({
+            name: name.trim() || userProfile.name,
+            diabetesType,
+            weightKg: parseFloat(weightKg) || undefined,
+            heightCm: parseFloat(heightCm) || undefined,
+            healthGoal: healthGoal.trim() || 'Prevenção de Diabetes & Saúde',
+            bioimpedance: {
+                date: bioDate,
+                bodyFatPercentage: parseFloat(bodyFatPercentage) || undefined,
+                muscleMassKg: parseFloat(muscleMassKg) || undefined,
+                visceralFatLevel: parseFloat(visceralFatLevel) || undefined,
+                basalMetabolicRateKcal: parseFloat(basalMetabolicRateKcal) || undefined,
+                waterPercentage: parseFloat(waterPercentage) || undefined,
+                professionalName: professionalName.trim() || undefined,
+                professionalNotes: professionalNotes.trim() || undefined,
+            }
+        });
+        setProfileSavedMsg(true);
+        setTimeout(() => setProfileSavedMsg(false), 3000);
+    };
 
     const handleExportBackup = () => {
         try {
@@ -131,8 +173,243 @@ const Settings: React.FC<SettingsProps> = ({
                 <button onClick={onBack} className="text-teal-500 hover:text-teal-700 flex items-center">
                     <i className="fas fa-arrow-left mr-2"></i> Voltar
                 </button>
-                <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mx-auto">Ajustes e Lembretes</h1>
+                <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mx-auto">Ajustes do Perfil e Lembretes</h1>
             </header>
+
+            {/* Physical Profile & Health Goals Form */}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md mb-6 border dark:border-gray-700">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-1 flex items-center gap-2">
+                    <i className="fas fa-user-circle text-teal-500"></i>
+                    Perfil Físico & Objetivos
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                    Estes dados são usados pela IA para avaliar se as suas refeições estão levando você mais perto do seu objetivo.
+                </p>
+
+                {profileSavedMsg && (
+                    <div className="mb-4 p-3 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 text-xs font-semibold rounded-lg flex items-center gap-2">
+                        <i className="fas fa-check-circle"></i>
+                        Perfil e objetivos atualizados com sucesso!
+                    </div>
+                )}
+
+                <form onSubmit={handleSavePhysicalProfile} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                Nome
+                            </label>
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                className={inputStyle}
+                                placeholder="Seu nome"
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                Condição Atual
+                            </label>
+                            <select
+                                value={diabetesType}
+                                onChange={(e) => setDiabetesType(e.target.value as DiabetesType)}
+                                className={inputStyle}
+                            >
+                                <option value={DiabetesType.None}>{DiabetesType.None}</option>
+                                <option value={DiabetesType.PreDiabetes}>{DiabetesType.PreDiabetes}</option>
+                                <option value={DiabetesType.Type1}>{DiabetesType.Type1}</option>
+                                <option value={DiabetesType.Type2}>{DiabetesType.Type2}</option>
+                                <option value={DiabetesType.Gestational}>{DiabetesType.Gestational}</option>
+                                <option value={DiabetesType.Other}>{DiabetesType.Other}</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                Peso (kg)
+                            </label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                value={weightKg}
+                                onChange={(e) => setWeightKg(e.target.value)}
+                                placeholder="Ex: 72.5"
+                                className={inputStyle}
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                Altura (cm)
+                            </label>
+                            <input
+                                type="number"
+                                value={heightCm}
+                                onChange={(e) => setHeightCm(e.target.value)}
+                                placeholder="Ex: 175"
+                                className={inputStyle}
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                            Objetivo Principal de Saúde
+                        </label>
+                        <select
+                            value={healthGoal}
+                            onChange={(e) => setHealthGoal(e.target.value)}
+                            className={inputStyle}
+                        >
+                            <option value="Prevenção de Diabetes & Saúde">Prevenção de Diabetes & Saúde</option>
+                            <option value="Perda de Peso & Queima de Gordura">Perda de Peso & Queima de Gordura</option>
+                            <option value="Controle Estável de Glicemia">Controle Estável de Glicemia</option>
+                            <option value="Ganho Muscular & Nutrição">Ganho Muscular & Nutrição</option>
+                            <option value="Redução do Consumo de Açúcar">Redução do Consumo de Açúcar</option>
+                        </select>
+                    </div>
+
+                    {/* Seção de Bioimpedância Clínica */}
+                    <div className="pt-4 border-t dark:border-gray-700 mt-4">
+                        <div className="flex items-center gap-2 mb-2">
+                            <i className="fas fa-file-medical text-teal-600 dark:text-teal-400 text-lg"></i>
+                            <h3 className="text-base font-bold text-gray-800 dark:text-gray-100">
+                                Bioimpedância & Acompanhamento Profissional
+                            </h3>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                            Cadastre aqui os resultados do seu exame de bioimpedância e as orientações do seu nutricionista/médico. A IA utilizará estes dados metabólicos para dar conselhos ultra-precisos!
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Data da Bioimpedância
+                                </label>
+                                <input
+                                    type="date"
+                                    value={bioDate}
+                                    onChange={(e) => setBioDate(e.target.value)}
+                                    className={inputStyle}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Gordura Corporal (%)
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={bodyFatPercentage}
+                                    onChange={(e) => setBodyFatPercentage(e.target.value)}
+                                    placeholder="Ex: 22.5"
+                                    className={inputStyle}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Massa Magra / Muscular (kg)
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={muscleMassKg}
+                                    onChange={(e) => setMuscleMassKg(e.target.value)}
+                                    placeholder="Ex: 34.0"
+                                    className={inputStyle}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Gordura Visceral (Nível)
+                                </label>
+                                <input
+                                    type="number"
+                                    step="1"
+                                    min="1"
+                                    max="59"
+                                    value={visceralFatLevel}
+                                    onChange={(e) => setVisceralFatLevel(e.target.value)}
+                                    placeholder="Ex: 6"
+                                    className={inputStyle}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Taxa Metabólica Basal (kcal)
+                                </label>
+                                <input
+                                    type="number"
+                                    step="1"
+                                    value={basalMetabolicRateKcal}
+                                    onChange={(e) => setBasalMetabolicRateKcal(e.target.value)}
+                                    placeholder="Ex: 1650"
+                                    className={inputStyle}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Água Corporal (%)
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={waterPercentage}
+                                    onChange={(e) => setWaterPercentage(e.target.value)}
+                                    placeholder="Ex: 58.0"
+                                    className={inputStyle}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Nome do Nutricionista / Profissional Responsável
+                                </label>
+                                <input
+                                    type="text"
+                                    value={professionalName}
+                                    onChange={(e) => setProfessionalName(e.target.value)}
+                                    placeholder="Ex: Dra. Ana Silva (CRN 12345)"
+                                    className={inputStyle}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Orientações & Observações do Profissional
+                                </label>
+                                <textarea
+                                    value={professionalNotes}
+                                    onChange={(e) => setProfessionalNotes(e.target.value)}
+                                    placeholder="Ex: Focar em ingerir pelo menos 80g de proteína por dia, manter carboidratos complexos no almoço e evitar jejum prolongado."
+                                    rows={3}
+                                    className={inputStyle}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="pt-2">
+                        <button
+                            type="submit"
+                            className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 px-4 rounded-lg transition shadow-sm flex items-center justify-center gap-2 text-sm"
+                        >
+                            <i className="fas fa-save"></i>
+                            Salvar Perfil, Bioimpedância e Objetivos
+                        </button>
+                    </div>
+                </form>
+            </div>
 
             {/* Glucose Reminders */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-6">

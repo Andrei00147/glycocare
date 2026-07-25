@@ -56,7 +56,10 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   const [step, setStep] = useState(0);
   const [profile, setProfile] = useState<Partial<UserProfile & { oralMedicationsString?: string }>>({
     name: '',
-    diabetesType: DiabetesType.Type1,
+    diabetesType: DiabetesType.None,
+    weightKg: 70,
+    heightCm: 170,
+    healthGoal: 'Prevenção de Diabetes & Saúde',
     useInsulin: false,
     useOralMedication: false,
     glucoseTargetMin: 70,
@@ -135,6 +138,8 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const baseSteps = [
       'disclaimer',
       'diabetesType',
+      'physicalMetrics',
+      'healthGoal',
       'useInsulin',
     ];
     if (profile.useInsulin) {
@@ -221,11 +226,63 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
             )}
 
             {currentStepName === 'diabetesType' && (
-                <QuestionCard title="Qual o seu tipo de diabetes?">
+                <QuestionCard title="Qual é a sua condição atual?">
+                    <p className="text-xs text-white/90 text-center mb-4">
+                        Selecione a opção que melhor descreve seu objetivo ou diagnóstico atual:
+                    </p>
+                    <OptionButton icon="fa-heart" onClick={() => handleSelectOption('diabetesType', DiabetesType.None)}>{DiabetesType.None}</OptionButton>
+                    <OptionButton icon="fa-shield-heart" onClick={() => handleSelectOption('diabetesType', DiabetesType.PreDiabetes)}>{DiabetesType.PreDiabetes}</OptionButton>
                     <OptionButton icon="fa-syringe" onClick={() => handleSelectOption('diabetesType', DiabetesType.Type1)}>{DiabetesType.Type1}</OptionButton>
                     <OptionButton icon="fa-pills" onClick={() => handleSelectOption('diabetesType', DiabetesType.Type2)}>{DiabetesType.Type2}</OptionButton>
                     <OptionButton icon="fa-baby" onClick={() => handleSelectOption('diabetesType', DiabetesType.Gestational)}>{DiabetesType.Gestational}</OptionButton>
                     <OptionButton icon="fa-question-circle" onClick={() => handleSelectOption('diabetesType', DiabetesType.Other)}>{DiabetesType.Other}</OptionButton>
+                </QuestionCard>
+            )}
+
+            {currentStepName === 'physicalMetrics' && (
+                <QuestionCard title="Dados Físicos">
+                    <p className="text-sm text-white/80 text-center mb-4">
+                        Seus dados físicos ajudam nossa IA a avaliar com mais precisão o impacto das refeições.
+                    </p>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase mb-1">Peso (kg)</label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                name="weightKg"
+                                value={profile.weightKg || ''}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-white text-center text-lg placeholder-white/70"
+                                placeholder="Ex: 70.5"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase mb-1">Altura (cm)</label>
+                            <input
+                                type="number"
+                                name="heightCm"
+                                value={profile.heightCm || ''}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-white text-center text-lg placeholder-white/70"
+                                placeholder="Ex: 175"
+                            />
+                        </div>
+                    </div>
+                    <NavButtons onBack={handlePrevStep} onNext={handleNextStep} disabled={!profile.weightKg || !profile.heightCm} />
+                </QuestionCard>
+            )}
+
+            {currentStepName === 'healthGoal' && (
+                <QuestionCard title="Qual é o seu principal objetivo?">
+                    <p className="text-xs text-white/80 text-center mb-4">
+                        A IA usará esta meta para analisar suas refeições diariamente.
+                    </p>
+                    <OptionButton icon="fa-shield-alt" onClick={() => handleSelectOption('healthGoal', 'Prevenção de Diabetes & Saúde')}>Prevenção de Diabetes & Saúde</OptionButton>
+                    <OptionButton icon="fa-weight" onClick={() => handleSelectOption('healthGoal', 'Perda de Peso & Queima de Gordura')}>Perda de Peso & Queima de Gordura</OptionButton>
+                    <OptionButton icon="fa-chart-line" onClick={() => handleSelectOption('healthGoal', 'Controle Estável de Glicemia')}>Controle Estável de Glicemia</OptionButton>
+                    <OptionButton icon="fa-dumbbell" onClick={() => handleSelectOption('healthGoal', 'Ganho Muscular & Nutrição')}>Ganho Muscular & Nutrição</OptionButton>
+                    <OptionButton icon="fa-apple-alt" onClick={() => handleSelectOption('healthGoal', 'Redução do Consumo de Açúcar')}>Redução do Consumo de Açúcar</OptionButton>
                 </QuestionCard>
             )}
             

@@ -146,8 +146,9 @@ const FoodAnalyzer: React.FC<FoodAnalyzerProps> = ({ userProfile, onClose, onAna
         
         <div className="p-4 border-t dark:border-gray-700 sticky bottom-0 bg-white dark:bg-gray-800 z-10">
             {result ? (
-                 <button onClick={() => onAnalysisComplete(result)} className="w-full bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition">
-                    Adicionar {result.carbohydrates}g de Carboidratos
+                 <button onClick={() => onAnalysisComplete(result)} className="w-full bg-emerald-600 text-white font-bold py-3 rounded-lg hover:bg-emerald-700 transition flex items-center justify-center gap-2 shadow-md">
+                    <i className="fas fa-plus-circle"></i>
+                    Registrar Refeição Analisada ({result.carbohydrates}g Carbs, {result.calories} kcal)
                 </button>
             ) : (
                 <button onClick={handleAnalyzeClick} disabled={!selectedFile || isLoading} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg hover:bg-teal-600 transition disabled:bg-gray-400 disabled:cursor-not-allowed">
