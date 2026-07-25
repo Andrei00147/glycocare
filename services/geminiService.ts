@@ -16,7 +16,7 @@ function getAI(): GoogleGenAI | null {
   return genAI;
 }
 
-const MODEL_NAME = "gemini-2.5-flash";
+const MODEL_NAME = "gemini-3.6-flash";
 
 export const analyzeFoodImage = async (
   base64Image: string,
