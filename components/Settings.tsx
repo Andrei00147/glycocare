@@ -1,22 +1,81 @@
-import React, { useState } from 'react';
-import { UserProfile, Reminder, View, MedicationReminder } from '../types';
+import React, { useState, useRef } from 'react';
+import { UserProfile, Reminder, View, MedicationReminder, GlucoseReading, Recipe } from '../types';
+import { exportDataBackup, importDataBackup, clearAllData, getLastSyncTime } from '../services/storageService';
 
 interface SettingsProps {
   userProfile: UserProfile;
+  glucoseReadings?: GlucoseReading[];
+  recipes?: Recipe[];
   onUpdateProfile: (profile: Partial<UserProfile>) => void;
   onBack: () => void;
   navigateTo: (view: View) => void;
+  onRestoreData?: (data: { userProfile: UserProfile | null; glucoseReadings: GlucoseReading[]; recipes: Recipe[] }) => void;
+  onResetData?: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ userProfile, onUpdateProfile, onBack, navigateTo }) => {
+const Settings: React.FC<SettingsProps> = ({
+  userProfile,
+  glucoseReadings = [],
+  recipes = [],
+  onUpdateProfile,
+  onBack,
+  navigateTo,
+  onRestoreData,
+  onResetData
+}) => {
     const [reminders, setReminders] = useState<Reminder[]>(userProfile.reminders || []);
     const [medReminders, setMedReminders] = useState<MedicationReminder[]>(userProfile.medicationReminders || []);
-    
+    const [backupMsg, setBackupMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     // State for adding new reminders
     const [newReminderName, setNewReminderName] = useState('');
     const [newReminderTime, setNewReminderTime] = useState('09:00');
     
     const [newMedReminder, setNewMedReminder] = useState({ medicationName: '', time: '08:00', dose: '1 comprimido'});
+
+    const handleExportBackup = () => {
+        try {
+            exportDataBackup(userProfile, glucoseReadings, recipes);
+            setBackupMsg({ type: 'success', text: 'Backup exportado com sucesso!' });
+        } catch (err) {
+            setBackupMsg({ type: 'error', text: 'Erro ao gerar arquivo de backup.' });
+        }
+    };
+
+    const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const content = event.target?.result as string;
+                const imported = importDataBackup(content);
+                if (onRestoreData) {
+                    onRestoreData({
+                        userProfile: imported.userProfile,
+                        glucoseReadings: imported.glucoseReadings,
+                        recipes: imported.recipes,
+                    });
+                }
+                setBackupMsg({ type: 'success', text: 'Dados importados e restaurados com sucesso!' });
+            } catch (err) {
+                console.error(err);
+                setBackupMsg({ type: 'error', text: 'Arquivo de backup inválido ou incompatível.' });
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    const handleClearDatabase = () => {
+        if (window.confirm('Tem certeza que deseja apagar todos os dados salvos neste dispositivo? Esta ação não poderá ser desfeita.')) {
+            clearAllData();
+            if (onResetData) {
+                onResetData();
+            }
+        }
+    };
 
     const handleUpdateReminders = (updatedReminders: Reminder[]) => {
         setReminders(updatedReminders);
@@ -141,14 +200,93 @@ const Settings: React.FC<SettingsProps> = ({ userProfile, onUpdateProfile, onBac
                 </button>
             </div>
 
-             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mt-6">
+            {/* Database & Backup Management */}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mt-6">
+                <div className="flex items-center justify-between mb-4 border-b dark:border-gray-700 pb-2">
+                    <h2 className="text-xl font-semibold flex items-center">
+                        <i className="fas fa-database text-teal-500 mr-2"></i>
+                        Banco de Dados Local & Backup
+                    </h2>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+                        <span className="w-2 h-2 mr-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                        Sincronizado
+                    </span>
+                </div>
+
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                    Suas medições de glicose, perfil, estoque de remédios e receitas personalizadas são salvos automaticamente no banco de dados do seu navegador.
+                </p>
+
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-4 text-xs sm:text-sm space-y-2 text-gray-700 dark:text-gray-300">
+                    <div className="flex justify-between">
+                        <span className="font-medium">Perfil ativo:</span>
+                        <span>{userProfile.name} ({userProfile.diabetesType})</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="font-medium">Leituras salvas:</span>
+                        <span>{glucoseReadings.length} registros</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="font-medium">Receitas salvas:</span>
+                        <span>{recipes.length} receitas</span>
+                    </div>
+                    <div className="flex justify-between border-t dark:border-gray-600 pt-2">
+                        <span className="font-medium">Última sincronização:</span>
+                        <span>{getLastSyncTime() ? new Date(getLastSyncTime()!).toLocaleString('pt-BR') : 'Agora'}</span>
+                    </div>
+                </div>
+
+                {backupMsg && (
+                    <div className={`p-3 rounded-lg text-sm mb-4 ${backupMsg.type === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200'}`}>
+                        {backupMsg.text}
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                        onClick={handleExportBackup}
+                        className="w-full bg-teal-500 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-teal-600 transition flex items-center justify-center text-sm"
+                    >
+                        <i className="fas fa-download mr-2"></i>
+                        Exportar Backup (JSON)
+                    </button>
+
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full bg-indigo-500 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-indigo-600 transition flex items-center justify-center text-sm"
+                    >
+                        <i className="fas fa-upload mr-2"></i>
+                        Importar Backup
+                    </button>
+
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImportBackup}
+                        accept=".json"
+                        className="hidden"
+                    />
+                </div>
+
+                <div className="mt-4 pt-4 border-t dark:border-gray-700">
+                    <button
+                        onClick={handleClearDatabase}
+                        className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 underline flex items-center"
+                    >
+                        <i className="fas fa-trash mr-1.5"></i>
+                        Limpar dados locais e reiniciar aplicativo
+                    </button>
+                </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mt-6">
                 <h2 className="text-xl font-semibold mb-4 border-b dark:border-gray-700 pb-2">Suporte & Feedback</h2>
                 <p className="text-gray-600 dark:text-gray-400 mb-4 text-sm">Sua opinião é muito importante para nós! Ajude-nos a melhorar o GlycoCare.</p>
                 <button onClick={() => navigateTo(View.Feedback)} className="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 flex items-center justify-center">
                     <i className="fas fa-comment-alt mr-2"></i>
                     Enviar Feedback
                 </button>
-             </div>
+            </div>
         </div>
     );
 };

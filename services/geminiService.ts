@@ -4,28 +4,19 @@ import { UserProfile, FoodAnalysisResult } from '../types';
 
 let genAI: GoogleGenAI | null = null;
 
-function getAI() {
+function getAI(): GoogleGenAI | null {
   if (!genAI) {
     const API_KEY = process.env.GEMINI_API_KEY || process.env.API_KEY;
     if (!API_KEY) {
       console.error("GEMINI_API_KEY is not set. AI features will be unavailable.");
       return null;
     }
-    genAI = new GoogleGenAI(API_KEY);
+    genAI = new GoogleGenAI({ apiKey: API_KEY });
   }
   return genAI;
 }
 
-function fileToGenerativePart(base64: string, mimeType: string) {
-  return {
-    inlineData: {
-      data: base64,
-      mimeType
-    },
-  };
-}
-
-const MODEL_NAME = "gemini-2.0-flash";
+const MODEL_NAME = "gemini-2.5-flash";
 
 export const analyzeFoodImage = async (
   base64Image: string,
@@ -34,36 +25,10 @@ export const analyzeFoodImage = async (
 ): Promise<FoodAnalysisResult> => {
   const ai = getAI();
   if (!ai) {
-    throw new Error("Serviço de IA não configurado. Verifique a chave de API.");
+    throw new Error("Serviço de IA não configurado. Verifique se a chave de API (GEMINI_API_KEY) está definida nas configurações do projeto.");
   }
 
   try {
-    const imagePart = fileToGenerativePart(base64Image, mimeType);
-    const model = ai.getGenerativeModel({
-        model: MODEL_NAME,
-        generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    foodItems: { 
-                        type: Type.ARRAY, 
-                        items: { type: Type.STRING },
-                        description: 'Lista dos alimentos identificados.'
-                    },
-                    carbohydrates: { type: Type.NUMBER, description: 'Estimativa de carboidratos em gramas.' },
-                    calories: { type: Type.NUMBER, description: 'Estimativa de calorias.' },
-                    sugars: { type: Type.NUMBER, description: 'Estimativa de açúcares em gramas.' },
-                    fats: { type: Type.NUMBER, description: 'Estimativa de gorduras em gramas.' },
-                    proteins: { type: Type.NUMBER, description: 'Estimativa de proteínas em gramas.' },
-                    smartAlert: { type: Type.STRING, description: 'Alerta personalizado para o usuário.' },
-                    mealTimingAdvice: { type: Type.STRING, description: 'Conselho sobre o melhor horário para a refeição.' }
-                },
-                required: ["foodItems", "carbohydrates", "calories", "sugars", "fats", "proteins", "smartAlert", "mealTimingAdvice"]
-            }
-        }
-    });
-
     const prompt = `
       Analise a imagem deste alimento. Com base no perfil do usuário diabético fornecido, retorne um objeto JSON.
 
@@ -77,70 +42,101 @@ export const analyzeFoodImage = async (
       3. Criar um "Alerta Inteligente" (smartAlert) empático e útil. O alerta deve ser personalizado com base nos alimentos identificados e no perfil do usuário. Por exemplo, se o alimento tiver alto índice glicêmico, dê um aviso amigável. Se for um doce, sugira moderação e monitoramento da glicose.
       4. Fornecer um "Conselho de Horário da Refeição" (mealTimingAdvice). Este conselho deve sugerir o melhor momento para consumir este alimento (ex: "Ideal após exercícios", "Melhor consumir no almoço para ter tempo de gastar a energia", "Evitar perto da hora de dormir devido ao alto teor de gordura") com base em seu impacto glicêmico e nutricional e nas metas do usuário.
 
-      Responda APENAS com o objeto JSON, sem nenhum texto ou formatação adicional.
+      Responda APENAS com o objeto JSON.
     `;
-    
-    const result = await model.generateContent([imagePart, prompt]);
-    const response = await result.response;
-    const text = response.text();
-    return JSON.parse(text) as FoodAnalysisResult;
-  } catch (error) {
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: [
+        {
+          inlineData: {
+            data: base64Image,
+            mimeType: mimeType
+          }
+        },
+        prompt
+      ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            foodItems: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: 'Lista dos alimentos identificados.'
+            },
+            carbohydrates: { type: Type.NUMBER, description: 'Estimativa de carboidratos em gramas.' },
+            calories: { type: Type.NUMBER, description: 'Estimativa de calorias.' },
+            sugars: { type: Type.NUMBER, description: 'Estimativa de açúcares em gramas.' },
+            fats: { type: Type.NUMBER, description: 'Estimativa de gorduras em gramas.' },
+            proteins: { type: Type.NUMBER, description: 'Estimativa de proteínas em gramas.' },
+            smartAlert: { type: Type.STRING, description: 'Alerta personalizado para o usuário.' },
+            mealTimingAdvice: { type: Type.STRING, description: 'Conselho sobre o melhor horário para a refeição.' }
+          },
+          required: ["foodItems", "carbohydrates", "calories", "sugars", "fats", "proteins", "smartAlert", "mealTimingAdvice"]
+        }
+      }
+    });
+
+    const jsonText = response.text || "";
+    return JSON.parse(jsonText) as FoodAnalysisResult;
+  } catch (error: any) {
     console.error("Error analyzing food image with Gemini:", error);
-    throw new Error("Não foi possível analisar a imagem. Tente novamente.");
+    throw new Error(error?.message || "Não foi possível analisar a imagem. Tente novamente.");
   }
 };
 
 export const calculateRecipeNutrition = async (
-    ingredients: string
-): Promise<{carbohydrates: number, calories: number}> => {
-    const ai = getAI();
-    if (!ai) {
-      throw new Error("Serviço de IA não configurado. Verifique a chave de API.");
-    }
+  ingredients: string
+): Promise<{ carbohydrates: number; calories: number }> => {
+  const ai = getAI();
+  if (!ai) {
+    throw new Error("Serviço de IA não configurado. Verifique se a chave de API (GEMINI_API_KEY) está definida nas configurações do projeto.");
+  }
 
-    try {
-        const model = ai.getGenerativeModel({
-            model: MODEL_NAME,
-            generationConfig: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        carbohydrates: { type: Type.NUMBER, description: 'Total de carboidratos em gramas.' },
-                        calories: { type: Type.NUMBER, description: 'Total de calorias (kcal).' }
-                    },
-                    required: ["carbohydrates", "calories"]
-                }
-            }
-        });
+  try {
+    const prompt = `
+      Analise esta lista de ingredientes de uma receita e estime o valor nutricional total.
 
-        const prompt = `
-            Analise esta lista de ingredientes de uma receita e estime o valor nutricional total.
-            
-            Ingredientes:
-            ${ingredients}
+      Ingredientes:
+      ${ingredients}
 
-            Sua tarefa é:
-            1. Calcular a quantidade total de carboidratos (em gramas).
-            2. Calcular a quantidade total de calorias (kcal).
-            3. Retorne um objeto JSON com as chaves "carbohydrates" e "calories".
+      Sua tarefa é:
+      1. Calcular a quantidade total de carboidratos (em gramas).
+      2. Calcular a quantidade total de calorias (kcal).
+      3. Retorne um objeto JSON com as chaves "carbohydrates" e "calories".
 
-            Responda APENAS com o objeto JSON, sem nenhum texto ou formatação adicional.
-        `;
-        
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-        const data = JSON.parse(text);
-        
-        if(typeof data.carbohydrates !== 'number' || typeof data.calories !== 'number') {
-            throw new Error("A resposta da IA não continha os dados esperados.");
+      Responda APENAS com o objeto JSON.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            carbohydrates: { type: Type.NUMBER, description: 'Total de carboidratos em gramas.' },
+            calories: { type: Type.NUMBER, description: 'Total de calorias (kcal).' }
+          },
+          required: ["carbohydrates", "calories"]
         }
-        
-        return data;
+      }
+    });
 
-    } catch (error) {
-        console.error("Error calculating recipe nutrition with Gemini:", error);
-        throw new Error("Não foi possível calcular os dados nutricionais. Verifique os ingredientes e tente novamente.");
+    const jsonText = response.text || "";
+    const data = JSON.parse(jsonText);
+
+    if (typeof data.carbohydrates !== 'number' || typeof data.calories !== 'number') {
+      throw new Error("A resposta da IA não continha os dados esperados.");
     }
+
+    return data;
+  } catch (error: any) {
+    console.error("Error calculating recipe nutrition with Gemini:", error);
+    throw new Error(error?.message || "Não foi possível calcular os dados nutricionais. Verifique os ingredientes e tente novamente.");
+  }
 };
+

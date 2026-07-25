@@ -7,6 +7,14 @@ import CommunityRecipes from './components/CommunityRecipes';
 import Settings from './components/Settings';
 import Feedback from './components/Feedback';
 import { UserProfile, View, Recipe, Reminder, GlucoseReading } from './types';
+import {
+  loadUserProfile,
+  saveUserProfile,
+  loadGlucoseReadings,
+  saveGlucoseReadings,
+  loadRecipes,
+  saveRecipes,
+} from './services/storageService';
 
 const initialRecipes: Recipe[] = [
     {
@@ -133,10 +141,13 @@ const initialRecipes: Recipe[] = [
 ];
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<View>(View.Onboarding);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [recipes, setRecipes] = useState<Recipe[]>(initialRecipes);
-  const [glucoseReadings, setGlucoseReadings] = useState<GlucoseReading[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => loadUserProfile());
+  const [recipes, setRecipes] = useState<Recipe[]>(() => loadRecipes(initialRecipes));
+  const [glucoseReadings, setGlucoseReadings] = useState<GlucoseReading[]>(() => loadGlucoseReadings());
+  const [currentView, setCurrentView] = useState<View>(() => {
+    return loadUserProfile() ? View.Dashboard : View.Onboarding;
+  });
+
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark' || savedTheme === 'light') return savedTheme;
@@ -154,6 +165,19 @@ const App: React.FC = () => {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Sync state to local storage database
+  useEffect(() => {
+    saveUserProfile(userProfile);
+  }, [userProfile]);
+
+  useEffect(() => {
+    saveGlucoseReadings(glucoseReadings);
+  }, [glucoseReadings]);
+
+  useEffect(() => {
+    saveRecipes(recipes);
+  }, [recipes]);
 
   const toggleTheme = () => {
       setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
@@ -186,6 +210,19 @@ const App: React.FC = () => {
     setRecipes(prev => [newRecipe, ...prev]);
   };
 
+  const handleRestoreData = (data: { userProfile: UserProfile | null; glucoseReadings: GlucoseReading[]; recipes: Recipe[] }) => {
+    if (data.userProfile) setUserProfile(data.userProfile);
+    if (data.glucoseReadings) setGlucoseReadings(data.glucoseReadings);
+    if (data.recipes) setRecipes(data.recipes);
+  };
+
+  const handleResetData = () => {
+    setUserProfile(null);
+    setGlucoseReadings([]);
+    setRecipes(initialRecipes);
+    setCurrentView(View.Onboarding);
+  };
+
   const navigateTo = (view: View) => {
     setCurrentView(view);
   };
@@ -203,7 +240,18 @@ const App: React.FC = () => {
       case View.CommunityRecipes:
         return userProfile ? <CommunityRecipes userProfile={userProfile} recipes={recipes} onAddRecipe={handleAddRecipe} onBack={() => navigateTo(View.Dashboard)} /> : <Onboarding onComplete={handleOnboardingComplete} />;
       case View.Settings:
-        return userProfile ? <Settings userProfile={userProfile} onUpdateProfile={handleUpdateProfile} onBack={() => navigateTo(View.Dashboard)} navigateTo={navigateTo} /> : <Onboarding onComplete={handleOnboardingComplete} />;
+        return userProfile ? (
+          <Settings
+            userProfile={userProfile}
+            glucoseReadings={glucoseReadings}
+            recipes={recipes}
+            onUpdateProfile={handleUpdateProfile}
+            onBack={() => navigateTo(View.Dashboard)}
+            navigateTo={navigateTo}
+            onRestoreData={handleRestoreData}
+            onResetData={handleResetData}
+          />
+        ) : <Onboarding onComplete={handleOnboardingComplete} />;
       case View.Feedback:
         return <Feedback onBack={() => navigateTo(View.Dashboard)} />;
       default:
