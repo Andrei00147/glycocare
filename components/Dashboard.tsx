@@ -17,7 +17,7 @@ interface DashboardProps {
   onAddGlucoseReading: (value: number, timestamp: Date) => void;
   mealLogs: MealLog[];
   onAddMealLog: (carbs: number, sugars: number, name?: string, proteins?: number, fats?: number, calories?: number) => void;
-  onRemoveMealLog: (id: string) => void;
+  onRemoveMealLog: (id: string, reason?: string) => void;
   weightLogs?: WeightLog[];
   onAddWeightLog?: (weightKg: number, notes?: string) => void;
   theme: 'light' | 'dark';
@@ -110,6 +110,15 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
   const [isEvaluatingGoal, setIsEvaluatingGoal] = useState(false);
   const [goalEvaluationError, setGoalEvaluationError] = useState<string | null>(null);
 
+  // Deletion Reason Modal State
+  const [deletingMeal, setDeletingMeal] = useState<MealLog | null>(null);
+  const [selectedDeleteReason, setSelectedDeleteReason] = useState<string>('Alimento/quantidade registrada incorretamente');
+  const [customDeleteReason, setCustomDeleteReason] = useState<string>('');
+
+  const activeMealLogs = useMemo(() => {
+    return (mealLogs || []).filter(m => !m.isDeleted);
+  }, [mealLogs]);
+
   const lastGlucose = useMemo(() => {
     if (glucoseReadings.length === 0) return null;
     return glucoseReadings[glucoseReadings.length - 1];
@@ -118,8 +127,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
   const todayMealLogs = useMemo(() => {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    return (mealLogs || []).filter(m => new Date(m.timestamp) >= startOfDay);
-  }, [mealLogs]);
+    return activeMealLogs.filter(m => new Date(m.timestamp) >= startOfDay);
+  }, [activeMealLogs]);
 
   const carbsToday = useMemo(() => {
     return todayMealLogs.reduce((acc, curr) => acc + (Number(curr.carbohydrates) || 0), 0);
@@ -261,14 +270,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
             <p className="text-gray-600 dark:text-gray-400">Aqui está o resumo do seu dia.</p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
-            <button
-                onClick={() => navigateTo(View.Onboarding)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/80 text-teal-700 dark:text-teal-300 font-bold text-xs rounded-xl border border-teal-200 dark:border-teal-800/80 transition shadow-sm"
-                title="Refazer ou Editar Questionário Inicial"
-            >
-                <i className="fas fa-clipboard-question text-teal-600 dark:text-teal-400"></i>
-                <span className="hidden md:inline">Questionário Inicial</span>
-            </button>
             <button 
                 onClick={handleToggleAllReminders}
                 className="relative text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
@@ -598,9 +599,13 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
                     </div>
 
                     <button
-                      onClick={() => onRemoveMealLog(meal.id)}
+                      onClick={() => {
+                        setDeletingMeal(meal);
+                        setSelectedDeleteReason('Alimento/quantidade registrada incorretamente');
+                        setCustomDeleteReason('');
+                      }}
                       className="text-gray-400 hover:text-red-500 transition text-sm p-1 ml-1"
-                      title="Excluir este registro"
+                      title="Excluir este registro com justificativa"
                     >
                       <i className="fas fa-trash-alt"></i>
                     </button>
@@ -696,6 +701,106 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
             onClose={() => setGlucoseModalOpen(false)}
             onRegister={handleRegisterGlucose}
            />
+      )}
+
+      {/* Modal de Motivo de Exclusão de Refeição */}
+      {deletingMeal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 relative border dark:border-gray-700">
+            <div className="flex justify-between items-center mb-4 border-b dark:border-gray-700 pb-3">
+              <h3 className="text-base font-bold text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                <i className="fas fa-trash-alt"></i> Motivo da Exclusão da Refeição
+              </h3>
+              <button
+                onClick={() => setDeletingMeal(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="mb-4 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-xl border dark:border-gray-600">
+              <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{deletingMeal.name || 'Refeição Registrada'}</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                {deletingMeal.carbohydrates}g Carboidratos • {deletingMeal.calories || 0} kcal • {new Date(deletingMeal.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+
+            <p className="text-xs text-gray-600 dark:text-gray-300 mb-3">
+              Por favor, informe o motivo para cancelar/excluir este registro. Esta justificativa ficará armazenada no seu histórico do perfil e constará no relatório médico/nutricional em PDF.
+            </p>
+
+            <div className="space-y-2 mb-4">
+              {[
+                "Alimento/quantidade registrada incorretamente",
+                "Refeição cancelada / não consumida",
+                "Substituída por outra opção alimentar",
+                "Sensação de indisposição / mal-estar",
+                "Registro duplicado ou de teste",
+                "Outro motivo (especificar abaixo)"
+              ].map((reasonOption) => (
+                <label
+                  key={reasonOption}
+                  onClick={() => setSelectedDeleteReason(reasonOption)}
+                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition ${
+                    selectedDeleteReason === reasonOption
+                      ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-200 font-bold'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="deleteReason"
+                    checked={selectedDeleteReason === reasonOption}
+                    onChange={() => setSelectedDeleteReason(reasonOption)}
+                    className="text-rose-600 focus:ring-rose-500"
+                  />
+                  <span>{reasonOption}</span>
+                </label>
+              ))}
+            </div>
+
+            {selectedDeleteReason === "Outro motivo (especificar abaixo)" && (
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Descreva a justificativa: <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={2}
+                  required
+                  placeholder="Ex: Troquei por uma salada leve por recomendação médica..."
+                  value={customDeleteReason}
+                  onChange={(e) => setCustomDeleteReason(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-xl text-xs dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2 border-t dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => setDeletingMeal(null)}
+                className="w-1/2 py-2.5 text-xs font-semibold border rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const finalReason = selectedDeleteReason === "Outro motivo (especificar abaixo)"
+                    ? (customDeleteReason.trim() || "Outro motivo não detalhado")
+                    : selectedDeleteReason;
+
+                  onRemoveMealLog(deletingMeal.id, finalReason);
+                  setDeletingMeal(null);
+                }}
+                className="w-1/2 py-2.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow transition"
+              >
+                Confirmar Exclusão
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

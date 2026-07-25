@@ -43,13 +43,22 @@ export const Reports: React.FC<ReportsProps> = ({
     return glucoseReadings.filter(r => new Date(r.timestamp) >= startDate);
   }, [filterPeriod, glucoseReadings]);
 
-  // Filter meal logs by selected period
+  // Filter active meal logs by selected period
   const filteredMeals = useMemo(() => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - filterPeriod);
     startDate.setHours(0, 0, 0, 0);
 
-    return mealLogs.filter(m => new Date(m.timestamp) >= startDate);
+    return mealLogs.filter(m => !m.isDeleted && new Date(m.timestamp) >= startDate);
+  }, [filterPeriod, mealLogs]);
+
+  // Filter deleted meal logs by selected period
+  const filteredDeletedMeals = useMemo(() => {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - filterPeriod);
+    startDate.setHours(0, 0, 0, 0);
+
+    return mealLogs.filter(m => m.isDeleted && new Date(m.timestamp) >= startDate);
   }, [filterPeriod, mealLogs]);
 
   // Filter weight logs by selected period
@@ -931,7 +940,65 @@ export const Reports: React.FC<ReportsProps> = ({
           </div>
         </div>
 
-        {/* Section 5: Bioimpedance & Medical Notes (If available) */}
+        {/* Section 4.5: Refeições Excluídas e Alteradas com Justificativas */}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
+              <i className="fas fa-trash-can text-rose-600"></i>
+              Refeições Excluídas / Alteradas no Período ({filteredDeletedMeals.length})
+            </h3>
+            <span className="text-[11px] text-gray-500 dark:text-gray-400 italic">
+              Registro auditável para médico / nutricionista
+            </span>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/30 dark:bg-rose-950/20">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-rose-100/70 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 font-bold uppercase tracking-wider">
+                <tr>
+                  <th className="p-3">Data do Registro</th>
+                  <th className="p-3">Refeição / Prato</th>
+                  <th className="p-3">Carboidratos / Calorias</th>
+                  <th className="p-3">Data Exclusão</th>
+                  <th className="p-3">Motivo da Exclusão</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rose-100 dark:divide-rose-900/40">
+                {filteredDeletedMeals.length > 0 ? (
+                  [...filteredDeletedMeals].reverse().map(meal => (
+                    <tr key={meal.id} className="hover:bg-rose-100/40 dark:hover:bg-rose-900/30 transition">
+                      <td className="p-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                        {new Date(meal.timestamp).toLocaleDateString('pt-BR')} {new Date(meal.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="p-3 font-bold text-gray-800 dark:text-gray-200">
+                        {meal.name || 'Refeição'}
+                      </td>
+                      <td className="p-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                        <span className="font-semibold text-orange-600 dark:text-orange-400">{meal.carbohydrates}g Carbs</span>
+                        {meal.calories ? <span className="ml-2 text-purple-600 dark:text-purple-400">({meal.calories} kcal)</span> : null}
+                      </td>
+                      <td className="p-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        {meal.deletedAt ? `${new Date(meal.deletedAt).toLocaleDateString('pt-BR')} ${new Date(meal.deletedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : 'N/D'}
+                      </td>
+                      <td className="p-3">
+                        <span className="inline-block px-2.5 py-1 rounded-lg bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200 font-medium text-[11px] border border-rose-200 dark:border-rose-800">
+                          <i className="fas fa-info-circle mr-1.5 text-rose-500"></i>
+                          {meal.deletionReason || 'Sem motivo especificado'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="p-4 text-center text-gray-500 dark:text-gray-400 italic">
+                      Nenhuma refeição foi excluída neste período.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
         {userProfile.bioimpedance && (
           <div className="p-4 rounded-xl bg-blue-50 dark:bg-gray-700/50 border border-blue-200 dark:border-gray-600 space-y-2 text-xs">
             <h4 className="font-bold text-blue-900 dark:text-blue-300 flex items-center gap-2 text-sm">

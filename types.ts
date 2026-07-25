@@ -130,6 +130,9 @@ export interface MealLog {
   fats?: number;
   calories?: number;
   timestamp: Date;
+  isDeleted?: boolean;
+  deletionReason?: string;
+  deletedAt?: Date;
 }
 
 export interface SmartMealPairing {

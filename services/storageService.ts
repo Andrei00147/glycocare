@@ -100,7 +100,8 @@ export const saveMealLogs = (logs: MealLog[]): void => {
   try {
     const formatted = logs.map(l => ({
       ...l,
-      timestamp: l.timestamp instanceof Date ? l.timestamp.toISOString() : l.timestamp
+      timestamp: l.timestamp instanceof Date ? l.timestamp.toISOString() : l.timestamp,
+      deletedAt: l.deletedAt ? (l.deletedAt instanceof Date ? l.deletedAt.toISOString() : l.deletedAt) : undefined
     }));
     localStorage.setItem(STORAGE_KEYS.MEAL_LOGS, JSON.stringify(formatted));
     localStorage.setItem(STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
@@ -123,7 +124,10 @@ export const loadMealLogs = (): MealLog[] => {
         proteins: Number(item.proteins || 0),
         fats: Number(item.fats || 0),
         calories: Number(item.calories || 0),
-        timestamp: new Date(item.timestamp)
+        timestamp: new Date(item.timestamp),
+        isDeleted: !!item.isDeleted,
+        deletionReason: item.deletionReason || undefined,
+        deletedAt: item.deletedAt ? new Date(item.deletedAt) : undefined
       }));
     }
     return [];

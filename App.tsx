@@ -20,7 +20,8 @@ import {
   addWeightLogToFirestore,
   fetchWeightLogsFromFirestore,
   addRecipeToFirestore,
-  fetchRecipesFromFirestore
+  fetchRecipesFromFirestore,
+  clearUserDataFromFirestore
 } from './services/firestoreService';
 import {
   loadUserProfile,
@@ -33,6 +34,7 @@ import {
   saveMealLogs,
   loadWeightLogs,
   saveWeightLogs,
+  clearAllData
 } from './services/storageService';
 
 const initialRecipes: Recipe[] = [
@@ -347,10 +349,30 @@ const App: React.FC = () => {
     }
   };
 
-  const handleRemoveMealLog = (id: string) => {
-    setMealLogs(prev => prev.filter(m => m.id !== id));
+  const handleRemoveMealLog = (id: string, reason?: string) => {
+    const finalReason = reason && reason.trim() ? reason.trim() : 'Excluído pelo usuário sem justificativa especificada';
+    setMealLogs(prev => prev.map(m => {
+      if (m.id === id) {
+        return {
+          ...m,
+          isDeleted: true,
+          deletionReason: finalReason,
+          deletedAt: new Date()
+        };
+      }
+      return m;
+    }));
+
     if (currentUser) {
-      deleteMealLogFromFirestore(currentUser.uid, id);
+      const target = mealLogs.find(m => m.id === id);
+      if (target) {
+        addMealLogToFirestore(currentUser.uid, {
+          ...target,
+          isDeleted: true,
+          deletionReason: finalReason,
+          deletedAt: new Date()
+        });
+      }
     }
   };
 
@@ -378,7 +400,11 @@ const App: React.FC = () => {
     if (data.weightLogs) setWeightLogs(data.weightLogs);
   };
 
-  const handleResetData = () => {
+  const handleResetData = async () => {
+    if (currentUser) {
+      await clearUserDataFromFirestore(currentUser.uid);
+    }
+    clearAllData();
     setUserProfile(null);
     setGlucoseReadings([]);
     setRecipes(initialRecipes);

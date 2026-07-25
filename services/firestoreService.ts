@@ -79,9 +79,15 @@ export async function fetchGlucoseReadingsFromFirestore(userId: string): Promise
 export async function addMealLogToFirestore(userId: string, mealLog: MealLog) {
   const path = `users/${userId}/mealLogs`;
   try {
+    const timestampIso = mealLog.timestamp instanceof Date ? mealLog.timestamp.toISOString() : new Date(mealLog.timestamp).toISOString();
+    const deletedAtIso = mealLog.deletedAt ? (mealLog.deletedAt instanceof Date ? mealLog.deletedAt.toISOString() : new Date(mealLog.deletedAt).toISOString()) : null;
+
     await setDoc(doc(db, 'users', userId, 'mealLogs', mealLog.id), {
       ...mealLog,
-      timestamp: mealLog.timestamp.toISOString(),
+      timestamp: timestampIso,
+      deletedAt: deletedAtIso,
+      isDeleted: !!mealLog.isDeleted,
+      deletionReason: mealLog.deletionReason || null,
       userId
     });
   } catch (error) {
@@ -110,13 +116,40 @@ export async function fetchMealLogsFromFirestore(userId: string): Promise<MealLo
       results.push({
         ...data,
         id: d.id,
-        timestamp: new Date(data.timestamp)
+        timestamp: new Date(data.timestamp),
+        deletedAt: data.deletedAt ? new Date(data.deletedAt) : undefined,
+        isDeleted: !!data.isDeleted,
+        deletionReason: data.deletionReason || undefined
       } as MealLog);
     });
     return results;
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
     return [];
+  }
+}
+
+// Clear all user profile data from Firestore
+export async function clearUserDataFromFirestore(userId: string) {
+  try {
+    await deleteDoc(doc(db, 'users', userId));
+
+    const readings = await getDocs(collection(db, 'users', userId, 'glucoseReadings'));
+    for (const d of readings.docs) {
+      await deleteDoc(d.ref);
+    }
+
+    const meals = await getDocs(collection(db, 'users', userId, 'mealLogs'));
+    for (const d of meals.docs) {
+      await deleteDoc(d.ref);
+    }
+
+    const weights = await getDocs(collection(db, 'users', userId, 'weightLogs'));
+    for (const d of weights.docs) {
+      await deleteDoc(d.ref);
+    }
+  } catch (error) {
+    console.warn("Erro ao limpar dados do perfil no Firestore:", error);
   }
 }
 

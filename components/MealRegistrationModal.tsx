@@ -412,7 +412,7 @@ export const MealRegistrationModal: React.FC<MealRegistrationModalProps> = ({
         <SmartMealSuggestionModal
           userProfile={userProfile}
           glucoseReadings={glucoseReadings}
-          mealLogs={mealLogs}
+          mealLogs={mealLogs.filter(m => !m.isDeleted)}
           onClose={() => setShowSmartSuggestionModal(false)}
           onSelectSuggestion={handleSelectSmartSuggestion}
         />

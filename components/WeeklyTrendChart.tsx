@@ -93,17 +93,24 @@ export const WeeklyTrendChart: React.FC<WeeklyTrendChartProps> = ({
     };
 
     filteredData.filteredGlucose.forEach(g => {
-      const key = formatDayKey(g.timestamp);
-      dateSet.add(key);
-      if (!dateMap[key]) dateMap[key] = { glucoseValues: [], weightValues: [] };
-      dateMap[key].glucoseValues.push(g.value);
+      const val = Number(g.value);
+      // Ignore extreme/unrealistic outliers (> 600 mg/dL)
+      if (!isNaN(val) && val > 0 && val < 600) {
+        const key = formatDayKey(g.timestamp);
+        dateSet.add(key);
+        if (!dateMap[key]) dateMap[key] = { glucoseValues: [], weightValues: [] };
+        dateMap[key].glucoseValues.push(val);
+      }
     });
 
     filteredData.filteredWeight.forEach(w => {
-      const key = formatDayKey(w.timestamp);
-      dateSet.add(key);
-      if (!dateMap[key]) dateMap[key] = { glucoseValues: [], weightValues: [] };
-      dateMap[key].weightValues.push(w.weightKg);
+      const val = Number(w.weightKg);
+      if (!isNaN(val) && val > 0 && val < 300) {
+        const key = formatDayKey(w.timestamp);
+        dateSet.add(key);
+        if (!dateMap[key]) dateMap[key] = { glucoseValues: [], weightValues: [] };
+        dateMap[key].weightValues.push(val);
+      }
     });
 
     // Sort labels chronologically
@@ -117,14 +124,17 @@ export const WeeklyTrendChart: React.FC<WeeklyTrendChartProps> = ({
     const glucoseDataPoints = sortedLabels.map(label => {
       const vals = dateMap[label]?.glucoseValues;
       if (!vals || vals.length === 0) return null;
-      return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+      return Math.round(vals.reduce((a, b) => a + Number(b), 0) / vals.length);
     });
 
     const weightDataPoints = sortedLabels.map(label => {
       const vals = dateMap[label]?.weightValues;
       if (!vals || vals.length === 0) return null;
-      return vals[vals.length - 1]; // Use last logged weight of the day
+      return Number(vals[vals.length - 1]); // Use last logged weight of the day
     });
+
+    const validGlucoseVals = glucoseDataPoints.filter((v): v is number => v !== null);
+    const maxLoggedGlucose = validGlucoseVals.length > 0 ? Math.max(...validGlucoseVals) : 180;
 
     const ctx = chartCanvasRef.current.getContext('2d');
     if (!ctx) return;
@@ -164,6 +174,7 @@ export const WeeklyTrendChart: React.FC<WeeklyTrendChartProps> = ({
         ]
       },
       options: {
+        animation: false, // Prevents points from jumping/bouncing on component re-renders
         responsive: true,
         maintainAspectRatio: false,
         interaction: {
@@ -220,8 +231,8 @@ export const WeeklyTrendChart: React.FC<WeeklyTrendChartProps> = ({
             },
             grid: { color: gridColor },
             ticks: { color: textColor, font: { size: 11 } },
-            suggestedMin: Math.max(40, (userProfile.glucoseTargetMin || 70) - 20),
-            suggestedMax: (userProfile.glucoseTargetMax || 180) + 30,
+            suggestedMin: 40,
+            suggestedMax: Math.min(500, Math.max(180, maxLoggedGlucose + 20)),
           },
           yWeight: {
             type: 'linear',
@@ -235,8 +246,8 @@ export const WeeklyTrendChart: React.FC<WeeklyTrendChartProps> = ({
             },
             grid: { drawOnChartArea: false }, // Avoid duplicate gridlines
             ticks: { color: textColor, font: { size: 11 } },
-            suggestedMin: stats.currentWeight ? Math.max(30, stats.currentWeight - 5) : 50,
-            suggestedMax: stats.currentWeight ? stats.currentWeight + 5 : 100,
+            suggestedMin: stats.currentWeight ? Math.max(30, Math.floor(stats.currentWeight - 10)) : 40,
+            suggestedMax: stats.currentWeight ? Math.ceil(stats.currentWeight + 10) : 120,
           }
         }
       }
