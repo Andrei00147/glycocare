@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { UserProfile, FoodAnalysisResult, GlucoseReading, MealLog, SmartMealSuggestionResult } from '../types';
+import { UserProfile, FoodAnalysisResult, GlucoseReading, MealLog, SmartMealSuggestionResult, DiabetesType } from '../types';
 
 let genAI: GoogleGenAI | null = null;
 
@@ -468,6 +468,71 @@ export const getSmartMealPairingSuggestions = async (
 
     const jsonText = response.text || "";
     return JSON.parse(jsonText) as SmartMealSuggestionResult;
+  } catch (error: any) {
+    throw handleGeminiError(error);
+  }
+};
+
+export const generatePersonalizedDailyTip = async (
+  userProfile: UserProfile
+): Promise<{
+  category: string;
+  title: string;
+  content: string;
+  icon: string;
+  tagColor: string;
+}> => {
+  const ai = getAI();
+  if (!ai) {
+    throw new Error("Serviço de IA não configurado. Verifique se a chave de API (GEMINI_API_KEY) está definida.");
+  }
+
+  try {
+    const isDiabetic = userProfile.diabetesType !== DiabetesType.None;
+
+    const prompt = `
+      Você é um especialista em saúde, nutrição e bem-estar metabólico.
+      Gere uma "Dica do Dia" altamente personalizada, acolhedora e prática para o usuário.
+
+      Perfil do Usuário:
+      - Nome: ${userProfile.name}
+      - Condição de Diabetes: ${userProfile.diabetesType} (${isDiabetic ? 'Focar em controle glicêmico, prevenção de picos e estilo de vida' : 'O USUÁRIO NÃO TEM DIABETES! Focar em prevenção metabólica, energia, disposição, nutrição inteligente, hidratação e atividade física. NUNCA mencione hipoglicemia, medicação para diabetes, insulina ou kits de emergência!'})
+      - Usa Insulina: ${userProfile.useInsulin ? 'Sim' : 'Não'}
+      - Objetivo de Saúde Principal: ${userProfile.healthGoal || 'Saúde e Prevenção'}
+      - Peso: ${userProfile.weightKg ? `${userProfile.weightKg} kg` : 'Não informado'}
+
+      Regras Estritas:
+      1. Se a condição for "Não tenho diabetes", NUNCA inclua conceitos como "kit de emergência para hipoglicemia", "aplicação de insulina" ou "testes de cetonas". Em vez disso, dê conselhos sobre vitalidade, prevenção de picos de glicose em pessoas saudáveis, foco, fibras e treino.
+      2. Título direto e cativante (3 a 6 palavras).
+      3. Conteúdo em 2 a 3 frases claras com orientação prática.
+      4. Categoria curta e elegante (ex: "Nutrição Inteligente", "Energia & Foco", "Prevenção", "Atividade Física", "Bem-Estar").
+      5. Escolha um ícone FontAwesome v6 adequado (ex: "fa-apple-whole", "fa-person-running", "fa-bolt", "fa-droplet", "fa-heart-pulse", "fa-brain", "fa-seedling").
+      6. Escolha uma combinação de cores Tailwind para 'tagColor' (ex: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300").
+
+      Responda APENAS com o objeto JSON.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            category: { type: Type.STRING },
+            title: { type: Type.STRING },
+            content: { type: Type.STRING },
+            icon: { type: Type.STRING },
+            tagColor: { type: Type.STRING },
+          },
+          required: ["category", "title", "content", "icon", "tagColor"]
+        }
+      }
+    });
+
+    const jsonText = response.text || "";
+    return JSON.parse(jsonText);
   } catch (error: any) {
     throw handleGeminiError(error);
   }

@@ -1,8 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { UserProfile, DiabetesType, Reminder, GlucoseReading, OralMedication } from '../types';
+import { auth, googleProvider, signInWithPopup } from '../src/firebase';
 
 interface OnboardingProps {
+  initialProfile?: UserProfile | null;
   onComplete: (profile: UserProfile, initialGlucose?: GlucoseReading) => void;
+  onCancel?: () => void;
 }
 
 // Helper Components defined outside the main component to prevent re-creation on re-renders.
@@ -52,28 +55,52 @@ const defaultReminders: Omit<Reminder, 'id'>[] = [
     { name: 'Antes de dormir', time: '22:00', isActive: false },
 ];
 
-const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
-  const [step, setStep] = useState(0);
-  const [profile, setProfile] = useState<Partial<UserProfile & { oralMedicationsString?: string }>>({
-    name: '',
-    diabetesType: DiabetesType.None,
-    weightKg: 70,
-    heightCm: 170,
-    healthGoal: 'Prevenção de Diabetes & Saúde',
-    useInsulin: false,
-    useOralMedication: false,
-    glucoseTargetMin: 70,
-    glucoseTargetMax: 180,
-    measurementFrequency: 4,
-    insulinStockPens: 3,
-    insulinUnitsPerPen: 300,
-    averageDailyUnits: 30,
-    insulinStockThreshold: 150,
-    reminders: defaultReminders.map((r, i) => ({ ...r, id: `default-${i}` })),
-    oralMedicationsString: '',
+const Onboarding: React.FC<OnboardingProps> = ({ initialProfile, onComplete, onCancel }) => {
+  const [step, setStep] = useState<number>(initialProfile ? 1 : 0);
+  const [profile, setProfile] = useState<Partial<UserProfile & { oralMedicationsString?: string }>>(() => {
+    if (initialProfile) {
+      return {
+        ...initialProfile,
+        oralMedicationsString: initialProfile.oralMedications?.map(m => m.name).join(', ') || ''
+      };
+    }
+    return {
+      name: '',
+      diabetesType: DiabetesType.None,
+      weightKg: 70,
+      heightCm: 170,
+      healthGoal: 'Prevenção de Diabetes & Saúde',
+      useInsulin: false,
+      useOralMedication: false,
+      glucoseTargetMin: 70,
+      glucoseTargetMax: 180,
+      measurementFrequency: 4,
+      insulinStockPens: 3,
+      insulinUnitsPerPen: 300,
+      averageDailyUnits: 30,
+      insulinStockThreshold: 150,
+      reminders: defaultReminders.map((r, i) => ({ ...r, id: `default-${i}` })),
+      oralMedicationsString: '',
+    };
   });
-  const [initialGlucose, setInitialGlucose] = useState('');
-  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
+  const [initialGlucose, setInitialGlucose] = useState(initialProfile ? '100' : '');
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(Boolean(initialProfile));
+  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
+  const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
+
+  const handleGoogleSignInAndSubmit = async () => {
+    setGoogleAuthError(null);
+    setIsGoogleSigningIn(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+      handleSubmit();
+    } catch (err: any) {
+      console.error('Google Auth Error during onboarding:', err);
+      setGoogleAuthError('Não foi possível conectar a conta Google. Você pode continuar sem login ou tentar novamente.');
+    } finally {
+      setIsGoogleSigningIn(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -99,36 +126,50 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
       }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const isDiabetic = useMemo(() => {
+    return profile.diabetesType ? profile.diabetesType !== DiabetesType.None : true;
+  }, [profile.diabetesType]);
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     const finalProfile: Partial<UserProfile> = { ...profile };
-    
-    // Convert oral medications string to array of objects
-    if (finalProfile.useOralMedication && profile.oralMedicationsString) {
-        const medNames = profile.oralMedicationsString.split(',').map(name => name.trim()).filter(Boolean);
-        finalProfile.oralMedications = medNames.map((name, index): OralMedication => ({
-            id: `oral-med-${new Date().getTime()}-${index}`,
-            name: name,
-            stock: 0,
-            threshold: 15, // Default threshold: 15 pills
-            dailyDoses: 1, // Default daily doses
-        }));
+
+    if (!isDiabetic) {
+      finalProfile.useInsulin = false;
+      finalProfile.useOralMedication = false;
+      finalProfile.glucoseTargetMin = finalProfile.glucoseTargetMin || 70;
+      finalProfile.glucoseTargetMax = finalProfile.glucoseTargetMax || 140;
+      finalProfile.reminders = [];
+      finalProfile.medicationReminders = [];
+      finalProfile.remindersGloballyActive = false;
+    } else {
+      // Convert oral medications string to array of objects
+      if (finalProfile.useOralMedication && profile.oralMedicationsString) {
+          const medNames = profile.oralMedicationsString.split(',').map(name => name.trim()).filter(Boolean);
+          finalProfile.oralMedications = medNames.map((name, index): OralMedication => ({
+              id: `oral-med-${new Date().getTime()}-${index}`,
+              name: name,
+              stock: 0,
+              threshold: 15, // Default threshold: 15 pills
+              dailyDoses: 1, // Default daily doses
+          }));
+      }
+
+      if (finalProfile.useInsulin) {
+        finalProfile.currentInsulinStockUnits = (finalProfile.insulinStockPens || 0) * (finalProfile.insulinUnitsPerPen || 0);
+      }
+      finalProfile.remindersGloballyActive = true;
     }
+
     delete (finalProfile as any).oralMedicationsString;
-
-
-    if (finalProfile.useInsulin) {
-      finalProfile.currentInsulinStockUnits = (finalProfile.insulinStockPens || 0) * (finalProfile.insulinUnitsPerPen || 0);
-    }
-
     finalProfile.theme = 'light';
-    finalProfile.remindersGloballyActive = true;
-    finalProfile.medicationReminders = [];
     
     let initialReading: GlucoseReading | undefined = undefined;
-    const glucoseValue = parseInt(initialGlucose, 10);
-    if (!isNaN(glucoseValue) && glucoseValue > 0) {
-        initialReading = { value: glucoseValue, timestamp: new Date() };
+    if (isDiabetic) {
+      const glucoseValue = parseInt(initialGlucose, 10);
+      if (!isNaN(glucoseValue) && glucoseValue > 0) {
+          initialReading = { value: glucoseValue, timestamp: new Date() };
+      }
     }
 
     onComplete(finalProfile as UserProfile, initialReading);
@@ -140,18 +181,25 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
       'diabetesType',
       'physicalMetrics',
       'healthGoal',
-      'useInsulin',
     ];
-    if (profile.useInsulin) {
-      baseSteps.push('averageDailyUnits', 'dailyDoses');
+
+    if (isDiabetic) {
+      baseSteps.push('useInsulin');
+      if (profile.useInsulin) {
+        baseSteps.push('averageDailyUnits', 'dailyDoses');
+      }
+      baseSteps.push('useOralMedication');
+      if (profile.useOralMedication) {
+        baseSteps.push('oralMedications');
+      }
+      baseSteps.push('reminders', 'name', 'glucoseTarget', 'initialReading');
+    } else {
+      baseSteps.push('name');
     }
-    baseSteps.push('useOralMedication');
-    if (profile.useOralMedication) {
-      baseSteps.push('oralMedications');
-    }
-    baseSteps.push('reminders', 'name', 'glucoseTarget', 'initialReading', 'final');
+
+    baseSteps.push('final');
     return baseSteps;
-  }, [profile.useInsulin, profile.useOralMedication]);
+  }, [isDiabetic, profile.useInsulin, profile.useOralMedication]);
 
   const currentStepName = steps[step - 1];
   const progress = useMemo(() => (step > 0 ? (step / steps.length) * 100 : 0), [step, steps]);
@@ -200,8 +248,16 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
   // Questionnaire Screens
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-400 to-cyan-500 flex flex-col items-center justify-center p-4 text-white">
-        <div className="w-full max-w-md mb-4">
+    <div className="min-h-screen bg-gradient-to-br from-teal-400 to-cyan-500 flex flex-col items-center justify-center p-4 text-white relative">
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="absolute top-4 left-4 bg-white/20 hover:bg-white/30 text-white font-bold py-2 px-4 rounded-xl backdrop-blur-md border border-white/30 transition text-xs flex items-center gap-2"
+          >
+            <i className="fas fa-arrow-left"></i> Voltar ao Dashboard
+          </button>
+        )}
+        <div className="w-full max-w-md mb-4 mt-8 sm:mt-0">
              <div className="w-full bg-white/20 rounded-full h-2.5">
                 <div className="bg-white h-2.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
             </div>
@@ -429,14 +485,60 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
             {currentStepName === 'final' && (
                 <QuestionCard title="Tudo pronto!">
-                    <div className="text-center">
-                        <p className="text-lg">Suas informações foram salvas com sucesso!</p>
-                        <p className="my-4 text-6xl animate-bounce">🎉</p>
-                        <p>Clique em concluir para acessar seu painel personalizado.</p>
+                    <div className="text-center space-y-3">
+                        <p className="text-base text-white/95">Questionário concluído com sucesso!</p>
+                        <p className="text-5xl my-2 animate-bounce">🎉</p>
+
+                        {auth.currentUser ? (
+                            <div className="bg-white/20 p-3 rounded-xl border border-white/30 text-xs text-white">
+                                <i className="fas fa-user-check text-emerald-300 mr-1.5"></i>
+                                Conectado como: <strong>{auth.currentUser.displayName || auth.currentUser.email}</strong>
+                            </div>
+                        ) : (
+                            <div className="bg-white/15 p-4 rounded-xl border border-white/25 text-left text-xs space-y-2">
+                                <p className="font-bold text-white text-sm flex items-center gap-1.5">
+                                    <i className="fab fa-google text-amber-300 text-base"></i>
+                                    Sincronize com sua conta Google (Gmail)
+                                </p>
+                                <p className="text-white/80 leading-relaxed">
+                                    Cadastre-se com o Google para salvar seu histórico de glicemia, refeições e estoques com segurança na nuvem, acessando de qualquer celular.
+                                </p>
+                            </div>
+                        )}
+
+                        {googleAuthError && (
+                            <p className="text-xs text-amber-200 font-medium bg-red-500/30 p-2 rounded-lg">
+                                {googleAuthError}
+                            </p>
+                        )}
                     </div>
-                    <div className="mt-6">
-                        <button onClick={handleSubmit} className="w-full bg-white text-teal-500 font-bold py-3 px-4 rounded-lg hover:bg-gray-100 transition-colors transform hover:scale-105">
-                            Concluir e ir para o Dashboard
+
+                    <div className="mt-5 space-y-2.5">
+                        {!auth.currentUser && (
+                            <button
+                                onClick={handleGoogleSignInAndSubmit}
+                                disabled={isGoogleSigningIn}
+                                className="w-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-gray-900 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg disabled:opacity-60 text-sm"
+                            >
+                                {isGoogleSigningIn ? (
+                                    <>
+                                        <i className="fas fa-spinner fa-spin"></i>
+                                        Conectando ao Google...
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="fab fa-google text-lg"></i>
+                                        Entrar com Google (Gmail) & Concluir
+                                    </>
+                                )}
+                            </button>
+                        )}
+
+                        <button
+                            onClick={handleSubmit}
+                            className={`w-full ${!auth.currentUser ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-white text-teal-600 font-bold'} text-xs font-semibold py-2.5 px-4 rounded-xl transition`}
+                        >
+                            {!auth.currentUser ? 'Continuar sem Conta Google' : 'Concluir e Ir para o Dashboard'}
                         </button>
                     </div>
                 </QuestionCard>

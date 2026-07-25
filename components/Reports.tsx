@@ -27,10 +27,12 @@ export const Reports: React.FC<ReportsProps> = ({
   const glucoseChartRef = useRef<HTMLCanvasElement>(null);
   const weightChartRef = useRef<HTMLCanvasElement>(null);
   const nutritionChartRef = useRef<HTMLCanvasElement>(null);
+  const weeklyComparisonChartRef = useRef<HTMLCanvasElement>(null);
 
   const glucoseChartInstance = useRef<any>(null);
   const weightChartInstance = useRef<any>(null);
   const nutritionChartInstance = useRef<any>(null);
+  const weeklyComparisonChartInstance = useRef<any>(null);
 
   // Filter glucose readings by selected period
   const filteredGlucose = useMemo(() => {
@@ -126,6 +128,88 @@ export const Reports: React.FC<ReportsProps> = ({
       readingsCount: filteredWeight.length
     };
   }, [filteredWeight, userProfile.weightKg]);
+
+  // Weekly Health Report Comparison (Current Week vs Previous Week)
+  const weeklyComparisonStats = useMemo(() => {
+    const now = new Date();
+
+    const startCurr = new Date(now);
+    startCurr.setDate(startCurr.getDate() - 7);
+    startCurr.setHours(0, 0, 0, 0);
+
+    const startPrev = new Date(startCurr);
+    startPrev.setDate(startPrev.getDate() - 7);
+    startPrev.setHours(0, 0, 0, 0);
+
+    // Glucose Comparisons
+    const currGlucose = glucoseReadings.filter(r => {
+      const d = new Date(r.timestamp);
+      return d >= startCurr;
+    });
+    const prevGlucose = glucoseReadings.filter(r => {
+      const d = new Date(r.timestamp);
+      return d >= startPrev && d < startCurr;
+    });
+
+    const currGlucoseAvg = currGlucose.length > 0
+      ? Math.round(currGlucose.reduce((acc, r) => acc + r.value, 0) / currGlucose.length)
+      : 0;
+    const prevGlucoseAvg = prevGlucose.length > 0
+      ? Math.round(prevGlucose.reduce((acc, r) => acc + r.value, 0) / prevGlucose.length)
+      : 0;
+
+    // Caloric Intake Comparisons (Daily Avg in Kcal)
+    const currMeals = mealLogs.filter(m => {
+      const d = new Date(m.timestamp);
+      return d >= startCurr;
+    });
+    const prevMeals = mealLogs.filter(m => {
+      const d = new Date(m.timestamp);
+      return d >= startPrev && d < startCurr;
+    });
+
+    const currCalTotal = currMeals.reduce((acc, m) => acc + (m.calories || 0), 0);
+    const prevCalTotal = prevMeals.reduce((acc, m) => acc + (m.calories || 0), 0);
+
+    const currCalAvg = Math.round(currCalTotal / 7);
+    const prevCalAvg = Math.round(prevCalTotal / 7);
+
+    // Weight Comparisons
+    const currWeightList = weightLogs.filter(w => {
+      const d = new Date(w.timestamp);
+      return d >= startCurr;
+    });
+    const prevWeightList = weightLogs.filter(w => {
+      const d = new Date(w.timestamp);
+      return d >= startPrev && d < startCurr;
+    });
+
+    const defaultWeight = userProfile.weightKg || 70;
+
+    const currWeightAvg = currWeightList.length > 0
+      ? Number((currWeightList.reduce((acc, w) => acc + w.weightKg, 0) / currWeightList.length).toFixed(1))
+      : defaultWeight;
+
+    const prevWeightAvg = prevWeightList.length > 0
+      ? Number((prevWeightList.reduce((acc, w) => acc + w.weightKg, 0) / prevWeightList.length).toFixed(1))
+      : (currWeightList.length > 0 ? currWeightList[0].weightKg : defaultWeight);
+
+    const glucoseDelta = currGlucoseAvg - prevGlucoseAvg;
+    const caloriesDelta = currCalAvg - prevCalAvg;
+    const weightDelta = Number((currWeightAvg - prevWeightAvg).toFixed(1));
+
+    return {
+      currGlucoseAvg,
+      prevGlucoseAvg,
+      glucoseDelta,
+      currCalAvg,
+      prevCalAvg,
+      caloriesDelta,
+      currWeightAvg,
+      prevWeightAvg,
+      weightDelta
+    };
+  }, [glucoseReadings, mealLogs, weightLogs, userProfile.weightKg]);
 
   // Render Charts with Chart.js
   useEffect(() => {
@@ -278,12 +362,91 @@ export const Reports: React.FC<ReportsProps> = ({
       }
     }
 
+    // 4. Weekly Health Report Comparative Bar Chart
+    if (weeklyComparisonChartRef.current) {
+      if (weeklyComparisonChartInstance.current) weeklyComparisonChartInstance.current.destroy();
+      const ctx = weeklyComparisonChartRef.current.getContext('2d');
+      if (ctx) {
+        weeklyComparisonChartInstance.current = new (window as any).Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Glicemia Média (mg/dL)', 'Calorias Diárias (kcal)', 'Peso Médio (kg)'],
+            datasets: [
+              {
+                label: 'Esta Semana (Últimos 7 dias)',
+                data: [
+                  weeklyComparisonStats.currGlucoseAvg,
+                  weeklyComparisonStats.currCalAvg,
+                  weeklyComparisonStats.currWeightAvg
+                ],
+                backgroundColor: '#0D9488', // Teal
+                borderColor: '#0F766E',
+                borderWidth: 1,
+                borderRadius: 8,
+              },
+              {
+                label: 'Semana Anterior (Dias 8-14)',
+                data: [
+                  weeklyComparisonStats.prevGlucoseAvg,
+                  weeklyComparisonStats.prevCalAvg,
+                  weeklyComparisonStats.prevWeightAvg
+                ],
+                backgroundColor: '#94A3B8', // Slate Gray
+                borderColor: '#64748B',
+                borderWidth: 1,
+                borderRadius: 8,
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                labels: { color: textColor, font: { weight: 'bold', size: 12 } }
+              },
+              tooltip: {
+                backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF',
+                titleColor: isDarkMode ? '#F3F4F6' : '#111827',
+                bodyColor: isDarkMode ? '#E5E7EB' : '#374151',
+                borderColor: isDarkMode ? '#374151' : '#E5E7EB',
+                borderWidth: 1,
+                padding: 10,
+                callbacks: {
+                  label: function (context: any) {
+                    const label = context.dataset.label || '';
+                    const val = context.parsed.y;
+                    const idx = context.dataIndex;
+                    const units = ['mg/dL', 'kcal/dia', 'kg'];
+                    return ` ${label}: ${val} ${units[idx] || ''}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              y: {
+                grid: { color: gridColor },
+                ticks: { color: textColor }
+              },
+              x: {
+                grid: { color: gridColor },
+                ticks: { color: textColor, font: { weight: 'bold', size: 11 } }
+              }
+            }
+          }
+        });
+      }
+    }
+
     return () => {
       if (glucoseChartInstance.current) glucoseChartInstance.current.destroy();
       if (weightChartInstance.current) weightChartInstance.current.destroy();
       if (nutritionChartInstance.current) nutritionChartInstance.current.destroy();
+      if (weeklyComparisonChartInstance.current) weeklyComparisonChartInstance.current.destroy();
     };
-  }, [filteredGlucose, filteredWeight, filteredMeals, userProfile]);
+  }, [filteredGlucose, filteredWeight, filteredMeals, weeklyComparisonStats, userProfile]);
 
   // PDF Export Function
   const handleExportPDF = async () => {
@@ -527,6 +690,123 @@ export const Reports: React.FC<ReportsProps> = ({
                 <strong>{weightStats.readingsCount} medições</strong>
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Section 0: Weekly Health Report Comparative View */}
+        <div className="bg-gradient-to-br from-teal-50/60 via-white to-emerald-50/60 dark:from-gray-800 dark:via-gray-800 dark:to-teal-950/30 p-5 rounded-2xl border-2 border-teal-500/30 shadow-md space-y-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b dark:border-gray-700 pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-teal-600 text-white rounded-xl text-xs font-bold shadow-sm">
+                  <i className="fas fa-chart-column text-sm"></i>
+                </span>
+                <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                  Relatório de Saúde Semanal: Comparativo com a Semana Anterior
+                </h3>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Análise comparativa das médias de glicemia, ingestão calórica diária e progressão de peso corporal (Chart.js).
+              </p>
+            </div>
+            <span className="text-[11px] font-bold bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 px-3 py-1 rounded-full border border-teal-300 dark:border-teal-700">
+              Esta Semana vs. Semana Anterior
+            </span>
+          </div>
+
+          {/* Comparative Summary Metrics Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Metric 1: Glucose Avg */}
+            <div className="bg-white dark:bg-gray-700/60 p-3.5 rounded-xl border dark:border-gray-600 shadow-sm">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-300 block mb-1">
+                <i className="fas fa-droplet text-teal-500 mr-1"></i> Glicemia Média
+              </span>
+              <div className="flex items-baseline justify-between">
+                <div>
+                  <span className="text-2xl font-black text-gray-800 dark:text-gray-100">
+                    {weeklyComparisonStats.currGlucoseAvg > 0 ? weeklyComparisonStats.currGlucoseAvg : '--'}
+                  </span>
+                  <span className="text-xs font-semibold text-gray-500 ml-1">mg/dL</span>
+                </div>
+                <div className={`text-xs font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 ${
+                  weeklyComparisonStats.glucoseDelta < 0 ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300' :
+                  weeklyComparisonStats.glucoseDelta > 0 ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300' :
+                  'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                }`}>
+                  <i className={`fas ${
+                    weeklyComparisonStats.glucoseDelta < 0 ? 'fa-arrow-down' :
+                    weeklyComparisonStats.glucoseDelta > 0 ? 'fa-arrow-up' : 'fa-equals'
+                  } text-[10px]`}></i>
+                  <span>{Math.abs(weeklyComparisonStats.glucoseDelta)} mg/dL</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-400 dark:text-gray-400 mt-1">
+                Semana anterior: <strong>{weeklyComparisonStats.prevGlucoseAvg > 0 ? `${weeklyComparisonStats.prevGlucoseAvg} mg/dL` : 'Sem dados'}</strong>
+              </p>
+            </div>
+
+            {/* Metric 2: Caloric Intake */}
+            <div className="bg-white dark:bg-gray-700/60 p-3.5 rounded-xl border dark:border-gray-600 shadow-sm">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 block mb-1">
+                <i className="fas fa-fire text-amber-500 mr-1"></i> Calorias Médias / Dia
+              </span>
+              <div className="flex items-baseline justify-between">
+                <div>
+                  <span className="text-2xl font-black text-gray-800 dark:text-gray-100">
+                    {weeklyComparisonStats.currCalAvg}
+                  </span>
+                  <span className="text-xs font-semibold text-gray-500 ml-1">kcal/dia</span>
+                </div>
+                <div className={`text-xs font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 ${
+                  weeklyComparisonStats.caloriesDelta < 0 ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300' :
+                  weeklyComparisonStats.caloriesDelta > 0 ? 'bg-orange-100 dark:bg-orange-950 text-orange-800 dark:text-orange-300' :
+                  'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                }`}>
+                  <i className={`fas ${
+                    weeklyComparisonStats.caloriesDelta < 0 ? 'fa-arrow-down' :
+                    weeklyComparisonStats.caloriesDelta > 0 ? 'fa-arrow-up' : 'fa-equals'
+                  } text-[10px]`}></i>
+                  <span>{Math.abs(weeklyComparisonStats.caloriesDelta)} kcal</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-400 dark:text-gray-400 mt-1">
+                Semana anterior: <strong>{weeklyComparisonStats.prevCalAvg} kcal/dia</strong>
+              </p>
+            </div>
+
+            {/* Metric 3: Weight Progression */}
+            <div className="bg-white dark:bg-gray-700/60 p-3.5 rounded-xl border dark:border-gray-600 shadow-sm">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300 block mb-1">
+                <i className="fas fa-weight-scale text-purple-500 mr-1"></i> Progressão de Peso
+              </span>
+              <div className="flex items-baseline justify-between">
+                <div>
+                  <span className="text-2xl font-black text-gray-800 dark:text-gray-100">
+                    {weeklyComparisonStats.currWeightAvg}
+                  </span>
+                  <span className="text-xs font-semibold text-gray-500 ml-1">kg</span>
+                </div>
+                <div className={`text-xs font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 ${
+                  weeklyComparisonStats.weightDelta < 0 ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300' :
+                  weeklyComparisonStats.weightDelta > 0 ? 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300' :
+                  'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                }`}>
+                  <i className={`fas ${
+                    weeklyComparisonStats.weightDelta < 0 ? 'fa-arrow-down' :
+                    weeklyComparisonStats.weightDelta > 0 ? 'fa-arrow-up' : 'fa-equals'
+                  } text-[10px]`}></i>
+                  <span>{weeklyComparisonStats.weightDelta > 0 ? `+${weeklyComparisonStats.weightDelta}` : weeklyComparisonStats.weightDelta} kg</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-400 dark:text-gray-400 mt-1">
+                Semana anterior: <strong>{weeklyComparisonStats.prevWeightAvg} kg</strong>
+              </p>
+            </div>
+          </div>
+
+          {/* Comparative Bar Chart Canvas */}
+          <div className="bg-white dark:bg-gray-700/40 p-4 rounded-xl border dark:border-gray-700 h-64 md:h-72">
+            <canvas ref={weeklyComparisonChartRef}></canvas>
           </div>
         </div>
 

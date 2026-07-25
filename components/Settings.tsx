@@ -411,27 +411,75 @@ const Settings: React.FC<SettingsProps> = ({
                 </form>
             </div>
 
-            {/* Glucose Reminders */}
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-6">
-                <h2 className="text-xl font-semibold mb-4 border-b dark:border-gray-700 pb-2">Lembretes de Glicemia</h2>
+            {/* Personal Health & Routine Reminders */}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md mb-6 border dark:border-gray-700">
+                <div className="flex items-center justify-between mb-2 border-b dark:border-gray-700 pb-3">
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                        <i className="fas fa-bell text-teal-500"></i>
+                        {userProfile.diabetesType !== DiabetesType.None ? 'Lembretes de Glicemia e Saúde' : 'Lembretes e Alertas Personalizados'}
+                    </h2>
+                </div>
+
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                    {userProfile.diabetesType !== DiabetesType.None 
+                      ? 'Configure horários para medir sua glicemia, tomar água, medicamentos ou hábitos de saúde.' 
+                      : 'Configure lembretes para sua rotina de saúde como beber água, aferir pressão, praticar exercícios e refeições.'}
+                </p>
+
+                {/* Quick Presets for Custom Reminders */}
+                <div className="mb-4">
+                    <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-2">
+                        Atalhos Rápidos de Lembretes:
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                        {[
+                            { name: '🚰 Beber Água', time: '10:00' },
+                            { name: '🩺 Aferir Pressão', time: '08:00' },
+                            { name: '🥗 Refeição Principal', time: '12:30' },
+                            { name: '💊 Vitamina / Suplemento', time: '07:30' },
+                            { name: '🏃 Exercício / Caminhada', time: '18:00' },
+                            ...(userProfile.diabetesType !== DiabetesType.None ? [{ name: '🩸 Medir Glicemia', time: '14:00' }] : [])
+                        ].map((preset, idx) => (
+                            <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                    setNewReminderName(preset.name);
+                                    setNewReminderTime(preset.time);
+                                }}
+                                className="text-xs bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900 text-teal-800 dark:text-teal-300 font-medium px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 transition shadow-sm"
+                            >
+                                + {preset.name}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 <div className="space-y-3 mb-6">
                     {reminders.length > 0 ? reminders.map(reminder => (
-                         <div key={reminder.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                         <div key={reminder.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/60 rounded-xl border dark:border-gray-600">
                             <div>
-                                <p className="font-semibold text-gray-800 dark:text-gray-200">{reminder.name}</p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">{reminder.time}</p>
+                                <p className="font-semibold text-sm text-gray-800 dark:text-gray-200">{reminder.name}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">⏰ às {reminder.time}</p>
                             </div>
                             <div className="flex items-center gap-3 sm:gap-4">
                                 <ToggleSwitch id={`toggle-${reminder.id}`} checked={reminder.isActive} onChange={(checked) => handleToggleReminder(reminder.id, checked)} />
-                                <button onClick={() => handleRemoveReminder(reminder.id)} className="text-red-500 hover:text-red-700"><i className="fas fa-trash-alt"></i></button>
+                                <button onClick={() => handleRemoveReminder(reminder.id)} className="text-gray-400 hover:text-red-500 transition p-1"><i className="fas fa-trash-alt"></i></button>
                             </div>
                         </div>
-                    )) : <p className="text-center text-gray-500 py-4">Nenhum lembrete de glicemia.</p>}
+                    )) : <p className="text-center text-xs text-gray-500 py-4 italic">Nenhum lembrete cadastrado ainda. Adicione um abaixo!</p>}
                 </div>
+
                 <form onSubmit={handleAddReminder} className="flex flex-col sm:flex-row gap-3">
-                    <input type="text" value={newReminderName} onChange={(e) => setNewReminderName(e.target.value)} placeholder="Nome (ex: Após o almoço)" className={`flex-grow ${inputStyle}`}/>
+                    <input 
+                        type="text" 
+                        value={newReminderName} 
+                        onChange={(e) => setNewReminderName(e.target.value)} 
+                        placeholder={userProfile.diabetesType !== DiabetesType.None ? "Motivo (ex: Medir Glicemia, Beber Água)" : "Motivo (ex: Beber Água, Aferir Pressão, Exercício)"} 
+                        className={`flex-grow ${inputStyle}`}
+                    />
                     <input type="time" value={newReminderTime} onChange={(e) => setNewReminderTime(e.target.value)} className={inputStyle}/>
-                    <button type="submit" className={buttonPrimary}><i className="fas fa-plus mr-2"></i>Adicionar</button>
+                    <button type="submit" className={buttonPrimary}><i className="fas fa-plus mr-1.5"></i>Adicionar</button>
                 </form>
             </div>
 
@@ -519,7 +567,7 @@ const Settings: React.FC<SettingsProps> = ({
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                     <button
                         onClick={handleExportBackup}
                         className="w-full bg-teal-500 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-teal-600 transition flex items-center justify-center text-sm"
@@ -544,6 +592,14 @@ const Settings: React.FC<SettingsProps> = ({
                         className="hidden"
                     />
                 </div>
+
+                <button
+                    onClick={() => navigateTo(View.Onboarding)}
+                    className="w-full bg-gradient-to-r from-teal-600 to-emerald-600 text-white font-bold py-2.5 px-4 rounded-lg hover:from-teal-700 hover:to-emerald-700 transition flex items-center justify-center text-sm shadow-sm"
+                >
+                    <i className="fas fa-clipboard-question mr-2"></i>
+                    Refazer Questionário Inicial
+                </button>
 
                 <div className="mt-4 pt-4 border-t dark:border-gray-700">
                     <button

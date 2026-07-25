@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // User Profile
+    match /users/{userId} {
+      allow read, write, create, update: if isOwner(userId) && isValidId(userId);
+
+      // User Glucose Readings
+      match /glucoseReadings/{readingId} {
+        allow read, write, create, update, delete: if isOwner(userId);
+      }
+
+      // User Meal Logs
+      match /mealLogs/{mealId} {
+        allow read, write, create, update, delete: if isOwner(userId);
+      }
+
+      // User Weight Logs
+      match /weightLogs/{weightId} {
+        allow read, write, create, update, delete: if isOwner(userId);
+      }
+
+      // User Insulin Doses
+      match /insulinDoses/{doseId} {
+        allow read, write, create, update, delete: if isOwner(userId);
+      }
+    }
+
+    // Community Recipes
+    match /communityRecipes/{recipeId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.authorUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.authorUid == request.auth.uid;
+    }
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User profile settings, health goals, and medical parameters",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "diabetesType": { "type": "string", "maxLength": 100 },
+        "weightKg": { "type": "number" },
+        "heightCm": { "type": "number" },
+        "healthGoal": { "type": "string", "maxLength": 200 },
+        "useInsulin": { "type": "boolean" },
+        "insulinType": { "type": "string", "maxLength": 100 },
+        "useOralMedication": { "type": "boolean" },
+        "glucoseTargetMin": { "type": "number" },
+        "glucoseTargetMax": { "type": "number" },
+        "measurementFrequency": { "type": "number" },
+        "remindersGloballyActive": { "type": "boolean" },
+        "theme": { "type": "string", "enum": ["light", "dark"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "diabetesType", "useInsulin", "useOralMedication", "glucoseTargetMin", "glucoseTargetMax"]
+    },
+    "GlucoseReading": {
+      "title": "Glucose Reading",
+      "description": "Blood glucose level measurement record",
+      "type": "object",
+      "properties": {
+        "value": { "type": "number" },
+        "timestamp": { "type": "string" },
+        "userId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["value", "timestamp", "userId"]
+    },
+    "MealLog": {
+      "title": "Meal Log",
+      "description": "Log of consumed meal nutrients",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 200 },
+        "carbohydrates": { "type": "number" },
+        "sugars": { "type": "number" },
+        "proteins": { "type": "number" },
+        "fats": { "type": "number" },
+        "calories": { "type": "number" },
+        "timestamp": { "type": "string" },
+        "userId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["carbohydrates", "sugars", "timestamp", "userId"]
+    },
+    "WeightLog": {
+      "title": "Weight Log",
+      "description": "Body weight measurement log",
+      "type": "object",
+      "properties": {
+        "weightKg": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 500 },
+        "timestamp": { "type": "string" },
+        "userId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["weightKg", "timestamp", "userId"]
+    },
+    "InsulinDose": {
+      "title": "Insulin Dose",
+      "description": "Insulin units administered",
+      "type": "object",
+      "properties": {
+        "units": { "type": "number" },
+        "timestamp": { "type": "string" },
+        "userId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["units", "timestamp", "userId"]
+    },
+    "CommunityRecipe": {
+      "title": "Community Recipe",
+      "description": "Diabetes-friendly shared recipe",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 200 },
+        "author": { "type": "string", "maxLength": 100 },
+        "authorUid": { "type": "string", "maxLength": 128 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "ingredients": { "type": "string", "maxLength": 2000 },
+        "instructions": { "type": "string", "maxLength": 5000 },
+        "carbohydrates": { "type": "number" },
+        "calories": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "author", "description", "ingredients", "instructions", "carbohydrates", "calories"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile document"
+    },
+    "/users/{userId}/glucoseReadings/{readingId}": {
+      "schema": { "$ref": "#/entities/GlucoseReading" },
+      "description": "User's blood glucose readings subcollection"
+    },
+    "/users/{userId}/mealLogs/{mealId}": {
+      "schema": { "$ref": "#/entities/MealLog" },
+      "description": "User's meal logs subcollection"
+    },
+    "/users/{userId}/weightLogs/{weightId}": {
+      "schema": { "$ref": "#/entities/WeightLog" },
+      "description": "User's weight logs subcollection"
+    },
+    "/users/{userId}/insulinDoses/{doseId}": {
+      "schema": { "$ref": "#/entities/InsulinDose" },
+      "description": "User's insulin dose logs subcollection"
+    },
+    "/communityRecipes/{recipeId}": {
+      "schema": { "$ref": "#/entities/CommunityRecipe" },
+      "description": "Shared recipes community collection"
+    }
+  }
+}

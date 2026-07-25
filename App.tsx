@@ -6,7 +6,22 @@ import StockManagement from './components/StockManagement';
 import CommunityRecipes from './components/CommunityRecipes';
 import Settings from './components/Settings';
 import Feedback from './components/Feedback';
+import FirebaseAuthBar from './components/FirebaseAuthBar';
 import { UserProfile, View, Recipe, Reminder, GlucoseReading, MealLog, WeightLog } from './types';
+import { User } from './src/firebase';
+import {
+  syncUserProfileToFirestore,
+  fetchUserProfileFromFirestore,
+  addGlucoseReadingToFirestore,
+  fetchGlucoseReadingsFromFirestore,
+  addMealLogToFirestore,
+  deleteMealLogFromFirestore,
+  fetchMealLogsFromFirestore,
+  addWeightLogToFirestore,
+  fetchWeightLogsFromFirestore,
+  addRecipeToFirestore,
+  fetchRecipesFromFirestore
+} from './services/firestoreService';
 import {
   loadUserProfile,
   saveUserProfile,
@@ -145,6 +160,7 @@ const initialRecipes: Recipe[] = [
 ];
 
 const App: React.FC = () => {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(() => loadUserProfile());
   const [recipes, setRecipes] = useState<Recipe[]>(() => loadRecipes(initialRecipes));
   const [glucoseReadings, setGlucoseReadings] = useState<GlucoseReading[]>(() => loadGlucoseReadings());
@@ -183,6 +199,64 @@ const App: React.FC = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // Sync with Firestore when user logs in
+  const handleUserChanged = useCallback(async (user: User | null) => {
+    setCurrentUser(user);
+    if (!user) return;
+
+    try {
+      // 1. User Profile Sync
+      const remoteProfile = await fetchUserProfileFromFirestore(user.uid);
+      if (remoteProfile) {
+        setUserProfile(remoteProfile);
+        saveUserProfile(remoteProfile);
+      } else if (userProfile) {
+        await syncUserProfileToFirestore(user.uid, userProfile);
+      }
+
+      // 2. Glucose Readings Sync
+      const remoteGlucose = await fetchGlucoseReadingsFromFirestore(user.uid);
+      if (remoteGlucose && remoteGlucose.length > 0) {
+        setGlucoseReadings(remoteGlucose);
+        saveGlucoseReadings(remoteGlucose);
+      } else {
+        for (const reading of glucoseReadings) {
+          await addGlucoseReadingToFirestore(user.uid, reading);
+        }
+      }
+
+      // 3. Meal Logs Sync
+      const remoteMeals = await fetchMealLogsFromFirestore(user.uid);
+      if (remoteMeals && remoteMeals.length > 0) {
+        setMealLogs(remoteMeals);
+        saveMealLogs(remoteMeals);
+      } else {
+        for (const meal of mealLogs) {
+          await addMealLogToFirestore(user.uid, meal);
+        }
+      }
+
+      // 4. Weight Logs Sync
+      const remoteWeights = await fetchWeightLogsFromFirestore(user.uid);
+      if (remoteWeights && remoteWeights.length > 0) {
+        setWeightLogs(remoteWeights);
+        saveWeightLogs(remoteWeights);
+      } else {
+        for (const weight of weightLogs) {
+          await addWeightLogToFirestore(user.uid, weight);
+        }
+      }
+
+      // 5. Recipes Sync
+      const remoteRecipes = await fetchRecipesFromFirestore();
+      if (remoteRecipes && remoteRecipes.length > 0) {
+        setRecipes(remoteRecipes);
+      }
+    } catch (err) {
+      console.error("Firestore sync error:", err);
+    }
+  }, [userProfile, glucoseReadings, mealLogs, weightLogs]);
+
   // Sync state to local storage database
   useEffect(() => {
     saveUserProfile(userProfile);
@@ -212,17 +286,32 @@ const App: React.FC = () => {
     setUserProfile(profile);
     if (initialGlucose) {
       setGlucoseReadings([initialGlucose]);
+      if (currentUser) {
+        addGlucoseReadingToFirestore(currentUser.uid, initialGlucose);
+      }
+    }
+    if (currentUser) {
+      syncUserProfileToFirestore(currentUser.uid, profile);
     }
     setCurrentView(View.Dashboard);
-  }, []);
+  }, [currentUser]);
   
   const handleUpdateProfile = (updatedProfile: Partial<UserProfile>) => {
-    setUserProfile(prev => prev ? { ...prev, ...updatedProfile } : null);
+    setUserProfile(prev => {
+      const next = prev ? { ...prev, ...updatedProfile } : null;
+      if (currentUser && next) {
+        syncUserProfileToFirestore(currentUser.uid, next);
+      }
+      return next;
+    });
   };
   
   const handleAddGlucoseReading = (value: number, timestamp: Date) => {
     const newReading: GlucoseReading = { value, timestamp };
     setGlucoseReadings(prev => [...prev, newReading].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
+    if (currentUser) {
+      addGlucoseReadingToFirestore(currentUser.uid, newReading);
+    }
   };
 
   const handleAddWeightLog = (weightKg: number, notes?: string) => {
@@ -235,6 +324,9 @@ const App: React.FC = () => {
     setWeightLogs(prev => [...prev, newLog].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
     if (userProfile) {
       handleUpdateProfile({ weightKg });
+    }
+    if (currentUser) {
+      addWeightLogToFirestore(currentUser.uid, newLog);
     }
   };
 
@@ -250,10 +342,16 @@ const App: React.FC = () => {
       timestamp: new Date()
     };
     setMealLogs(prev => [...prev, newLog]);
+    if (currentUser) {
+      addMealLogToFirestore(currentUser.uid, newLog);
+    }
   };
 
   const handleRemoveMealLog = (id: string) => {
     setMealLogs(prev => prev.filter(m => m.id !== id));
+    if (currentUser) {
+      deleteMealLogFromFirestore(currentUser.uid, id);
+    }
   };
 
   const handleAddRecipe = (newRecipeData: Omit<Recipe, 'id' | 'author'>) => {
@@ -264,10 +362,16 @@ const App: React.FC = () => {
       author: userProfile.name,
     };
     setRecipes(prev => [newRecipe, ...prev]);
+    if (currentUser) {
+      addRecipeToFirestore(currentUser.uid, newRecipe);
+    }
   };
 
   const handleRestoreData = (data: { userProfile: UserProfile | null; glucoseReadings: GlucoseReading[]; recipes: Recipe[]; mealLogs?: MealLog[]; weightLogs?: WeightLog[] }) => {
-    if (data.userProfile) setUserProfile(data.userProfile);
+    if (data.userProfile) {
+      setUserProfile(data.userProfile);
+      if (currentUser) syncUserProfileToFirestore(currentUser.uid, data.userProfile);
+    }
     if (data.glucoseReadings) setGlucoseReadings(data.glucoseReadings);
     if (data.recipes) setRecipes(data.recipes);
     if (data.mealLogs) setMealLogs(data.mealLogs);
@@ -290,7 +394,13 @@ const App: React.FC = () => {
   const renderView = () => {
     switch (currentView) {
       case View.Onboarding:
-        return <Onboarding onComplete={handleOnboardingComplete} />;
+        return (
+          <Onboarding
+            initialProfile={userProfile}
+            onComplete={handleOnboardingComplete}
+            onCancel={userProfile ? () => navigateTo(View.Dashboard) : undefined}
+          />
+        );
       case View.Dashboard:
         return userProfile ? (
           <Dashboard
@@ -344,8 +454,11 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans text-gray-800 dark:text-gray-200">
-      {renderView()}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans text-gray-800 dark:text-gray-200 flex flex-col">
+      <FirebaseAuthBar onUserChanged={handleUserChanged} />
+      <div className="flex-1">
+        {renderView()}
+      </div>
     </div>
   );
 };

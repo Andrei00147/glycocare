@@ -236,9 +236,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
   }, [userProfile.reminders, userProfile.medicationReminders, userProfile.remindersGloballyActive]);
   
   const FAB: React.FC<{ icon: string; onClick: () => void; label: string; }> = ({ icon, onClick, label }) => (
-    <button onClick={onClick} className="flex flex-col items-center justify-center bg-teal-500 text-white w-16 h-16 rounded-full shadow-lg hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transform hover:scale-110 transition-transform duration-200">
-        <i className={`fas ${icon} text-2xl`}></i>
-        <span className="text-xs mt-1">{label}</span>
+    <button onClick={onClick} className="flex flex-col items-center justify-center bg-teal-500 hover:bg-teal-600 active:bg-teal-700 text-white w-13 h-13 sm:w-15 sm:h-15 rounded-full shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transform active:scale-95 sm:hover:scale-105 transition-all duration-200">
+        <i className={`fas ${icon} text-lg sm:text-xl`}></i>
+        <span className="text-[10px] sm:text-xs mt-0.5 leading-none font-medium">{label}</span>
     </button>
   );
 
@@ -260,7 +260,15 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
             <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Olá, {userProfile.name}!</h1>
             <p className="text-gray-600 dark:text-gray-400">Aqui está o resumo do seu dia.</p>
         </div>
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+            <button
+                onClick={() => navigateTo(View.Onboarding)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/80 text-teal-700 dark:text-teal-300 font-bold text-xs rounded-xl border border-teal-200 dark:border-teal-800/80 transition shadow-sm"
+                title="Refazer ou Editar Questionário Inicial"
+            >
+                <i className="fas fa-clipboard-question text-teal-600 dark:text-teal-400"></i>
+                <span className="hidden md:inline">Questionário Inicial</span>
+            </button>
             <button 
                 onClick={handleToggleAllReminders}
                 className="relative text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
@@ -283,7 +291,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
       <main className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Tip of the Day Widget */}
         <div className="md:col-span-2 lg:col-span-3">
-          <DailyTip />
+          <DailyTip userProfile={userProfile} />
         </div>
 
         {/* Daily Summary Widget */}
@@ -471,7 +479,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
               </div>
             </div>
             <button
-              onClick={() => onNavigate(View.Settings)}
+              onClick={() => navigateTo(View.Settings)}
               className="text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 text-xs font-semibold flex items-center gap-1 bg-teal-50 dark:bg-teal-950/40 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800/60"
             >
               <i className="fas fa-edit"></i>
@@ -535,7 +543,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
                 Ao cadastrar a % de gordura, massa magra, TMB e orientações do seu profissional, nossa IA cruzará estes dados com suas refeições para fornecer análises ainda mais assertivas.
               </p>
               <button
-                onClick={() => onNavigate(View.Settings)}
+                onClick={() => navigateTo(View.Settings)}
                 className="bg-teal-600 hover:bg-teal-700 text-white font-bold px-3.5 py-1.5 rounded-lg text-xs shadow transition inline-flex items-center gap-1.5"
               >
                 <i className="fas fa-plus-circle"></i>
