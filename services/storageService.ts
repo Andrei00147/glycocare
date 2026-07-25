@@ -1,10 +1,11 @@
-import { UserProfile, GlucoseReading, Recipe, MealLog, View } from '../types';
+import { UserProfile, GlucoseReading, Recipe, MealLog, WeightLog, View } from '../types';
 
 const STORAGE_KEYS = {
   USER_PROFILE: 'glycocare_user_profile',
   GLUCOSE_READINGS: 'glycocare_glucose_readings',
   CUSTOM_RECIPES: 'glycocare_recipes',
   MEAL_LOGS: 'glycocare_meal_logs',
+  WEIGHT_LOGS: 'glycocare_weight_logs',
   LAST_VIEW: 'glycocare_last_view',
   LAST_SYNC: 'glycocare_last_sync',
 };
@@ -16,6 +17,7 @@ export interface AppDataBackup {
   glucoseReadings: GlucoseReading[];
   recipes: Recipe[];
   mealLogs?: MealLog[];
+  weightLogs?: WeightLog[];
 }
 
 export const saveUserProfile = (profile: UserProfile | null): void => {
@@ -131,11 +133,45 @@ export const loadMealLogs = (): MealLog[] => {
   }
 };
 
+export const saveWeightLogs = (logs: WeightLog[]): void => {
+  try {
+    const formatted = logs.map(w => ({
+      ...w,
+      timestamp: w.timestamp instanceof Date ? w.timestamp.toISOString() : w.timestamp
+    }));
+    localStorage.setItem(STORAGE_KEYS.WEIGHT_LOGS, JSON.stringify(formatted));
+    localStorage.setItem(STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
+  } catch (err) {
+    console.error('Failed to save weight logs to storage:', err);
+  }
+};
+
+export const loadWeightLogs = (): WeightLog[] => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.WEIGHT_LOGS);
+    if (!data) return [];
+    const parsed = JSON.parse(data);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item: any) => ({
+        id: item.id || String(Date.now()),
+        weightKg: Number(item.weightKg || 0),
+        timestamp: new Date(item.timestamp),
+        notes: item.notes
+      }));
+    }
+    return [];
+  } catch (err) {
+    console.error('Failed to load weight logs from storage:', err);
+    return [];
+  }
+};
+
 export const exportDataBackup = (
   userProfile: UserProfile | null,
   glucoseReadings: GlucoseReading[],
   recipes: Recipe[],
-  mealLogs?: MealLog[]
+  mealLogs?: MealLog[],
+  weightLogs?: WeightLog[]
 ): void => {
   const backup: AppDataBackup = {
     version: 1,
@@ -143,7 +179,8 @@ export const exportDataBackup = (
     userProfile,
     glucoseReadings,
     recipes,
-    mealLogs: mealLogs || loadMealLogs()
+    mealLogs: mealLogs || loadMealLogs(),
+    weightLogs: weightLogs || loadWeightLogs()
   };
 
   const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(backup, null, 2))}`;
@@ -200,6 +237,7 @@ export const clearAllData = (): void => {
   localStorage.removeItem(STORAGE_KEYS.GLUCOSE_READINGS);
   localStorage.removeItem(STORAGE_KEYS.CUSTOM_RECIPES);
   localStorage.removeItem(STORAGE_KEYS.MEAL_LOGS);
+  localStorage.removeItem(STORAGE_KEYS.WEIGHT_LOGS);
   localStorage.removeItem(STORAGE_KEYS.LAST_VIEW);
   localStorage.removeItem(STORAGE_KEYS.LAST_SYNC);
 };

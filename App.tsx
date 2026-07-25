@@ -6,7 +6,7 @@ import StockManagement from './components/StockManagement';
 import CommunityRecipes from './components/CommunityRecipes';
 import Settings from './components/Settings';
 import Feedback from './components/Feedback';
-import { UserProfile, View, Recipe, Reminder, GlucoseReading, MealLog } from './types';
+import { UserProfile, View, Recipe, Reminder, GlucoseReading, MealLog, WeightLog } from './types';
 import {
   loadUserProfile,
   saveUserProfile,
@@ -16,6 +16,8 @@ import {
   saveRecipes,
   loadMealLogs,
   saveMealLogs,
+  loadWeightLogs,
+  saveWeightLogs,
 } from './services/storageService';
 
 const initialRecipes: Recipe[] = [
@@ -147,6 +149,18 @@ const App: React.FC = () => {
   const [recipes, setRecipes] = useState<Recipe[]>(() => loadRecipes(initialRecipes));
   const [glucoseReadings, setGlucoseReadings] = useState<GlucoseReading[]>(() => loadGlucoseReadings());
   const [mealLogs, setMealLogs] = useState<MealLog[]>(() => loadMealLogs());
+  const [weightLogs, setWeightLogs] = useState<WeightLog[]>(() => {
+    const loaded = loadWeightLogs();
+    if (loaded.length === 0 && userProfile?.weightKg) {
+      return [{
+        id: 'init-weight',
+        weightKg: userProfile.weightKg,
+        timestamp: new Date(),
+        notes: 'Peso inicial'
+      }];
+    }
+    return loaded;
+  });
   const [currentView, setCurrentView] = useState<View>(() => {
     return loadUserProfile() ? View.Dashboard : View.Onboarding;
   });
@@ -186,6 +200,10 @@ const App: React.FC = () => {
     saveMealLogs(mealLogs);
   }, [mealLogs]);
 
+  useEffect(() => {
+    saveWeightLogs(weightLogs);
+  }, [weightLogs]);
+
   const toggleTheme = () => {
       setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
@@ -205,6 +223,19 @@ const App: React.FC = () => {
   const handleAddGlucoseReading = (value: number, timestamp: Date) => {
     const newReading: GlucoseReading = { value, timestamp };
     setGlucoseReadings(prev => [...prev, newReading].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
+  };
+
+  const handleAddWeightLog = (weightKg: number, notes?: string) => {
+    const newLog: WeightLog = {
+      id: String(Date.now()),
+      weightKg,
+      timestamp: new Date(),
+      notes
+    };
+    setWeightLogs(prev => [...prev, newLog].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
+    if (userProfile) {
+      handleUpdateProfile({ weightKg });
+    }
   };
 
   const handleAddMealLog = (carbohydrates: number, sugars: number, name?: string, proteins?: number, fats?: number, calories?: number) => {
@@ -235,11 +266,12 @@ const App: React.FC = () => {
     setRecipes(prev => [newRecipe, ...prev]);
   };
 
-  const handleRestoreData = (data: { userProfile: UserProfile | null; glucoseReadings: GlucoseReading[]; recipes: Recipe[]; mealLogs?: MealLog[] }) => {
+  const handleRestoreData = (data: { userProfile: UserProfile | null; glucoseReadings: GlucoseReading[]; recipes: Recipe[]; mealLogs?: MealLog[]; weightLogs?: WeightLog[] }) => {
     if (data.userProfile) setUserProfile(data.userProfile);
     if (data.glucoseReadings) setGlucoseReadings(data.glucoseReadings);
     if (data.recipes) setRecipes(data.recipes);
     if (data.mealLogs) setMealLogs(data.mealLogs);
+    if (data.weightLogs) setWeightLogs(data.weightLogs);
   };
 
   const handleResetData = () => {
@@ -247,6 +279,7 @@ const App: React.FC = () => {
     setGlucoseReadings([]);
     setRecipes(initialRecipes);
     setMealLogs([]);
+    setWeightLogs([]);
     setCurrentView(View.Onboarding);
   };
 
@@ -269,12 +302,23 @@ const App: React.FC = () => {
             mealLogs={mealLogs}
             onAddMealLog={handleAddMealLog}
             onRemoveMealLog={handleRemoveMealLog}
+            weightLogs={weightLogs}
+            onAddWeightLog={handleAddWeightLog}
             theme={theme}
             toggleTheme={toggleTheme}
           />
         ) : <Onboarding onComplete={handleOnboardingComplete} />;
       case View.Reports:
-         return userProfile ? <Reports userProfile={userProfile} glucoseReadings={glucoseReadings} onBack={() => navigateTo(View.Dashboard)} /> : <Onboarding onComplete={handleOnboardingComplete} />;
+         return userProfile ? (
+           <Reports
+             userProfile={userProfile}
+             glucoseReadings={glucoseReadings}
+             mealLogs={mealLogs}
+             weightLogs={weightLogs}
+             onAddWeightLog={handleAddWeightLog}
+             onBack={() => navigateTo(View.Dashboard)}
+           />
+         ) : <Onboarding onComplete={handleOnboardingComplete} />;
       case View.StockManagement:
         return userProfile ? <StockManagement userProfile={userProfile} onUpdateProfile={handleUpdateProfile} onBack={() => navigateTo(View.Dashboard)} /> : <Onboarding onComplete={handleOnboardingComplete} />;
       case View.CommunityRecipes:

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, GlucoseReading, View, Reminder, MedicationReminder, MealLog, GoalEvaluationResult } from '../types';
+import { UserProfile, GlucoseReading, View, Reminder, MedicationReminder, MealLog, GoalEvaluationResult, SmartMealPairing, WeightLog } from '../types';
 import FoodAnalyzer from './FoodAnalyzer';
 import DoseRegistrationModal from './DoseRegistrationModal';
 import GlucoseRegistrationModal from './GlucoseRegistrationModal';
 import MealRegistrationModal from './MealRegistrationModal';
 import DailyTip from './DailyTip';
+import SmartMealSuggestionModal from './SmartMealSuggestionModal';
+import WeeklyTrendChart from './WeeklyTrendChart';
 import { evaluateMealsAgainstGoal } from '../services/geminiService';
 
 interface DashboardProps {
@@ -16,6 +18,8 @@ interface DashboardProps {
   mealLogs: MealLog[];
   onAddMealLog: (carbs: number, sugars: number, name?: string, proteins?: number, fats?: number, calories?: number) => void;
   onRemoveMealLog: (id: string) => void;
+  weightLogs?: WeightLog[];
+  onAddWeightLog?: (weightKg: number, notes?: string) => void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
 }
@@ -80,13 +84,26 @@ const Alert: React.FC<AlertProps> = ({ onManageStock, messages, severity }) => {
 };
 
 
-const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, navigateTo, glucoseReadings, onAddGlucoseReading, mealLogs, onAddMealLog, onRemoveMealLog, theme, toggleTheme }) => {
+const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, navigateTo, glucoseReadings, onAddGlucoseReading, mealLogs, onAddMealLog, onRemoveMealLog, weightLogs = [], onAddWeightLog, theme, toggleTheme }) => {
   const [dailyInsulinDoses, setDailyInsulinDoses] = useState(0);
   const [isAnalyzerOpen, setAnalyzerOpen] = useState(false);
   const [isDoseModalOpen, setDoseModalOpen] = useState(false);
   const [isGlucoseModalOpen, setGlucoseModalOpen] = useState(false);
   const [isMealModalOpen, setMealModalOpen] = useState(false);
+  const [isSmartSuggestionOpen, setSmartSuggestionOpen] = useState(false);
   const [alerts, setAlerts] = useState<{id: string, severity: 'warning' | 'critical', message: string}[]>([]);
+
+  const handleSelectSmartPairingFromDashboard = (suggestion: SmartMealPairing) => {
+    onAddMealLog(
+      suggestion.carbohydrates,
+      suggestion.sugars,
+      suggestion.title,
+      suggestion.proteins,
+      suggestion.fats,
+      suggestion.calories
+    );
+    setSmartSuggestionOpen(false);
+  };
 
   // AI Goal Evaluation state
   const [goalEvaluation, setGoalEvaluation] = useState<GoalEvaluationResult | null>(null);
@@ -345,6 +362,17 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
             </div>
         </div>
 
+        {/* Gráfico de Evolução Semanal de Peso e Glicose */}
+        <div className="md:col-span-2 lg:col-span-3">
+          <WeeklyTrendChart
+            userProfile={userProfile}
+            glucoseReadings={glucoseReadings}
+            weightLogs={weightLogs}
+            onAddWeightLog={onAddWeightLog}
+            theme={theme}
+          />
+        </div>
+
         {/* AI Goal Progress Evaluation Widget */}
         <div className="md:col-span-2 lg:col-span-3 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-xl shadow-lg p-5 text-white">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-white/20 pb-3 mb-4">
@@ -520,10 +548,20 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
         {/* Refeições Registradas Hoje */}
         {todayMealLogs.length > 0 && (
           <div className="md:col-span-2 lg:col-span-3 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md">
-            <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-              <i className="fas fa-list-ul text-orange-500"></i>
-              Refeições Registradas Hoje ({todayMealLogs.length})
-            </h3>
+            <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
+              <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                <i className="fas fa-list-ul text-orange-500"></i>
+                Refeições Registradas Hoje ({todayMealLogs.length})
+              </h3>
+
+              <button
+                onClick={() => setSmartSuggestionOpen(true)}
+                className="px-3 py-1.5 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5"
+              >
+                <i className="fas fa-brain"></i>
+                Sugestão Inteligente (Gemini AI)
+              </button>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {todayMealLogs.map(meal => (
                 <div key={meal.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-700/60 p-3 rounded-lg border dark:border-gray-600">
@@ -617,12 +655,25 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
 
       {isMealModalOpen && (
           <MealRegistrationModal
+            userProfile={userProfile}
+            glucoseReadings={glucoseReadings}
+            mealLogs={mealLogs}
             onClose={() => setMealModalOpen(false)}
             onRegister={(carbs, sugars, name, proteins, fats, calories) => {
               onAddMealLog(carbs, sugars, name, proteins, fats, calories);
               setMealModalOpen(false);
             }}
           />
+      )}
+
+      {isSmartSuggestionOpen && (
+        <SmartMealSuggestionModal
+          userProfile={userProfile}
+          glucoseReadings={glucoseReadings}
+          mealLogs={mealLogs}
+          onClose={() => setSmartSuggestionOpen(false)}
+          onSelectSuggestion={handleSelectSmartPairingFromDashboard}
+        />
       )}
 
       {isDoseModalOpen && (

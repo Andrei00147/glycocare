@@ -114,6 +114,13 @@ export interface Recipe {
   externalLink?: string;
 }
 
+export interface WeightLog {
+  id: string;
+  weightKg: number;
+  timestamp: Date;
+  notes?: string;
+}
+
 export interface MealLog {
   id: string;
   name?: string;
@@ -123,6 +130,22 @@ export interface MealLog {
   fats?: number;
   calories?: number;
   timestamp: Date;
+}
+
+export interface SmartMealPairing {
+  title: string;
+  description: string;
+  carbohydrates: number;
+  sugars: number;
+  proteins: number;
+  fats: number;
+  calories: number;
+  pairingReason: string;
+}
+
+export interface SmartMealSuggestionResult {
+  glucoseContextSummary: string;
+  suggestions: SmartMealPairing[];
 }
 
 export interface GoalEvaluationResult {

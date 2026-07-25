@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { UserProfile, FoodAnalysisResult } from '../types';
+import { UserProfile, FoodAnalysisResult, GlucoseReading, MealLog, SmartMealSuggestionResult } from '../types';
 
 let genAI: GoogleGenAI | null = null;
 
@@ -295,6 +295,179 @@ export const evaluateMealsAgainstGoal = async (
 
     const jsonText = response.text || "";
     return JSON.parse(jsonText);
+  } catch (error: any) {
+    throw handleGeminiError(error);
+  }
+};
+
+export const estimateMealNutrientsFromDescriptionOrImage = async (
+  userProfile?: UserProfile,
+  description?: string,
+  base64Image?: string,
+  mimeType?: string
+): Promise<{
+  suggestedName: string;
+  carbohydrates: number;
+  sugars: number;
+  proteins: number;
+  fats: number;
+  calories: number;
+  explanation: string;
+}> => {
+  const ai = getAI();
+  if (!ai) {
+    throw new Error("Serviço de IA não configurado. Verifique se a chave de API (GEMINI_API_KEY) está definida.");
+  }
+
+  try {
+    const contents: any[] = [];
+
+    if (base64Image && mimeType) {
+      contents.push({
+        inlineData: {
+          data: base64Image,
+          mimeType: mimeType
+        }
+      });
+    }
+
+    const promptText = `
+      Você é um nutricionista especialista em cálculo de macronutrientes.
+      Analise o prato/refeição fornecido ${base64Image ? 'pela foto do prato' : ''} ${description ? `e pela seguinte descrição detalhada de ingredientes, quantidades e modo de preparo: "${description}"` : ''}.
+
+      Perfil do usuário: ${userProfile ? `${userProfile.diabetesType}, Objetivo: ${userProfile.healthGoal || 'Saúde'}` : 'Geral'}.
+
+      Sua tarefa é calcular com a maior precisão possível:
+      1. 'suggestedName': Um nome sucinto para a refeição (ex: "Frango Grelhado com Mandioca e Salada").
+      2. 'carbohydrates': Estimativa total de carboidratos (em gramas).
+      3. 'sugars': Estimativa de açúcares/glicose adicionada ou simples (em gramas).
+      4. 'proteins': Estimativa de proteínas (em gramas).
+      5. 'fats': Estimativa de gorduras totais, considerando óleos de preparo informados (em gramas).
+      6. 'calories': Estimativa de calorias totais (kcal).
+      7. 'explanation': Breve explicação (1 frase) sobre como o modo de preparo e os ingredientes influenciaram este cálculo.
+
+      Responda APENAS com o objeto JSON.
+    `;
+
+    contents.push(promptText);
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: contents,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            suggestedName: { type: Type.STRING },
+            carbohydrates: { type: Type.NUMBER },
+            sugars: { type: Type.NUMBER },
+            proteins: { type: Type.NUMBER },
+            fats: { type: Type.NUMBER },
+            calories: { type: Type.NUMBER },
+            explanation: { type: Type.STRING },
+          },
+          required: ["suggestedName", "carbohydrates", "sugars", "proteins", "fats", "calories", "explanation"]
+        }
+      }
+    });
+
+    const jsonText = response.text || "";
+    return JSON.parse(jsonText);
+  } catch (error: any) {
+    throw handleGeminiError(error);
+  }
+};
+
+export const getSmartMealPairingSuggestions = async (
+  userProfile: UserProfile,
+  glucoseReadings: GlucoseReading[] = [],
+  mealLogs: MealLog[] = []
+): Promise<SmartMealSuggestionResult> => {
+  const ai = getAI();
+  if (!ai) {
+    throw new Error("Serviço de IA não configurado. Verifique se a chave de API (GEMINI_API_KEY) está definida.");
+  }
+
+  try {
+    const recentGlucose = glucoseReadings.slice(-10);
+    const avgGlucose = recentGlucose.length > 0
+      ? Math.round(recentGlucose.reduce((sum, r) => sum + r.value, 0) / recentGlucose.length)
+      : null;
+
+    const glucoseSummary = recentGlucose.length > 0
+      ? `Últimas ${recentGlucose.length} medições de glicemia: Média ${avgGlucose} mg/dL (Faixa alvo: ${userProfile.glucoseTargetMin}-${userProfile.glucoseTargetMax} mg/dL). Leitura mais recente: ${recentGlucose[recentGlucose.length - 1].value} mg/dL.`
+      : `Nenhuma medição recente de glicemia registrada. Meta do usuário: ${userProfile.glucoseTargetMin}-${userProfile.glucoseTargetMax} mg/dL.`;
+
+    const recentMealsSummary = mealLogs.slice(-5).map((m, i) =>
+      `${i + 1}. ${m.name || 'Refeição'}: ${m.carbohydrates}g carbs, ${m.sugars || 0}g açúcar, ${m.proteins || 0}g proteína`
+    ).join('\n') || 'Nenhuma refeição registrada recentemente.';
+
+    const prompt = `
+      Você é um nutricionista especialista em diabetes, saúde metabólica e controle glicêmico.
+      Sua tarefa é sugerir 3 combinações inteligentes de alimentos (healthy food pairings) personalizadas para o usuário.
+
+      Perfil do Usuário:
+      - Nome: ${userProfile.name}
+      - Tipo de Diabetes: ${userProfile.diabetesType}
+      - Objetivo de Saúde Principal: ${userProfile.healthGoal || 'Controle de Açúcar no Sangue e Prevenção'}
+      - Histórico de Glicemia Recente: ${glucoseSummary}
+      - Refeições Recentes:
+      ${recentMealsSummary}
+
+      Regras das Sugestões de Combinação Inteligente (Healthy Food Pairings):
+      1. Combine alimentos de baixo índice glicêmico com fontes de proteínas magras, gorduras boas e fibras que lentificam a absorção dos carboidratos.
+      2. Leve em consideração a tendência glicêmica recente (se a glicemia média está alta, favoreça mais fibras/proteínas e pouquíssimos carboidratos simples; se está na meta, sugira combinações equilibradas e saborosas).
+      3. Forneça estimativas nutricionais realistas por porção sugerida (carbohydrates, sugars, proteins, fats, calories).
+      4. Forneça uma justificativa clara 'pairingReason' explicando o porquê científico/prático desta combinação com base nas metas do usuário e tendências de glicemia.
+
+      Responda APENAS com o objeto JSON contendo:
+      - 'glucoseContextSummary': Resumo de 1 frase contextualizando a situação glicêmica do usuário e a estratégia adotada.
+      - 'suggestions': Lista de 3 objetos com:
+        - 'title': Nome atraente da combinação/refeição
+        - 'description': Ingredientes detalhados e forma simples de montagem
+        - 'carbohydrates': number (g)
+        - 'sugars': number (g)
+        - 'proteins': number (g)
+        - 'fats': number (g)
+        - 'calories': number (kcal)
+        - 'pairingReason': string (Explicação empática e técnica de por que essa combinação é ideal)
+    `;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            glucoseContextSummary: { type: Type.STRING },
+            suggestions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  carbohydrates: { type: Type.NUMBER },
+                  sugars: { type: Type.NUMBER },
+                  proteins: { type: Type.NUMBER },
+                  fats: { type: Type.NUMBER },
+                  calories: { type: Type.NUMBER },
+                  pairingReason: { type: Type.STRING },
+                },
+                required: ["title", "description", "carbohydrates", "sugars", "proteins", "fats", "calories", "pairingReason"]
+              }
+            }
+          },
+          required: ["glucoseContextSummary", "suggestions"]
+        }
+      }
+    });
+
+    const jsonText = response.text || "";
+    return JSON.parse(jsonText) as SmartMealSuggestionResult;
   } catch (error: any) {
     throw handleGeminiError(error);
   }
