@@ -49,6 +49,9 @@ export interface UserProfile {
   diabetesType: DiabetesType;
   weightKg?: number;
   heightCm?: number;
+  targetWeightKg?: number;
+  targetMuscleMassKg?: number;
+  targetBodyFatPercentage?: number;
   healthGoal?: string; // e.g. "Prevenção de Diabetes", "Perda de Peso", "Controle de Açúcar", "Ganho Muscular", "Saúde e Bem-Estar"
   bioimpedance?: BioimpedanceData;
   diagnosisDate?: string;
@@ -156,4 +159,17 @@ export interface GoalEvaluationResult {
   scoreTitle: string;
   detailedFeedback: string;
   suggestedNextStep: string;
+}
+
+export interface PartnerSpecialist {
+  id: string;
+  name: string;
+  role: 'Médico' | 'Nutricionista' | 'Personal Trainer';
+  specialty: string;
+  registrationNumber: string;
+  photoUrl?: string;
+  bio: string;
+  whatsapp?: string;
+  supportsMonthlyMonitoring: boolean;
+  rating: number;
 }

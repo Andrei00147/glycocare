@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { UserProfile, GlucoseReading, WeightLog } from '../types';
+import { UserProfile, GlucoseReading, WeightLog, DiabetesType } from '../types';
 
 interface WeeklyTrendChartProps {
   userProfile: UserProfile;
@@ -133,6 +133,39 @@ export const WeeklyTrendChart: React.FC<WeeklyTrendChartProps> = ({
       return Number(vals[vals.length - 1]); // Use last logged weight of the day
     });
 
+    const isDiabetic = userProfile?.diabetesType && userProfile.diabetesType !== DiabetesType.None;
+
+    const datasets: any[] = [];
+    if (isDiabetic) {
+      datasets.push({
+        label: 'Glicemia Média (mg/dL)',
+        data: sortedLabels.length > 0 ? glucoseDataPoints : [null],
+        borderColor: '#0D9488', // Teal
+        backgroundColor: 'rgba(13, 148, 136, 0.1)',
+        pointBackgroundColor: '#0D9488',
+        pointBorderColor: '#ffffff',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        tension: 0.3,
+        yAxisID: 'yGlucose',
+        spanGaps: true,
+      });
+    }
+
+    datasets.push({
+      label: 'Peso Corporal (kg)',
+      data: sortedLabels.length > 0 ? weightDataPoints : [null],
+      borderColor: '#8B5CF6', // Purple
+      backgroundColor: 'rgba(139, 92, 246, 0.1)',
+      pointBackgroundColor: '#8B5CF6',
+      pointBorderColor: '#ffffff',
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      tension: 0.2,
+      yAxisID: 'yWeight',
+      spanGaps: true,
+    });
+
     const validGlucoseVals = glucoseDataPoints.filter((v): v is number => v !== null);
     const maxLoggedGlucose = validGlucoseVals.length > 0 ? Math.max(...validGlucoseVals) : 180;
 
@@ -144,34 +177,7 @@ export const WeeklyTrendChart: React.FC<WeeklyTrendChartProps> = ({
       type: 'line',
       data: {
         labels: sortedLabels.length > 0 ? sortedLabels : ['Sem dados'],
-        datasets: [
-          {
-            label: 'Glicemia Média (mg/dL)',
-            data: sortedLabels.length > 0 ? glucoseDataPoints : [null],
-            borderColor: '#0D9488', // Teal
-            backgroundColor: 'rgba(13, 148, 136, 0.1)',
-            pointBackgroundColor: '#0D9488',
-            pointBorderColor: '#ffffff',
-            pointRadius: 5,
-            pointHoverRadius: 7,
-            tension: 0.3,
-            yAxisID: 'yGlucose',
-            spanGaps: true,
-          },
-          {
-            label: 'Peso Corporal (kg)',
-            data: sortedLabels.length > 0 ? weightDataPoints : [null],
-            borderColor: '#8B5CF6', // Purple
-            backgroundColor: 'rgba(139, 92, 246, 0.1)',
-            pointBackgroundColor: '#8B5CF6',
-            pointBorderColor: '#ffffff',
-            pointRadius: 6,
-            pointHoverRadius: 8,
-            tension: 0.2,
-            yAxisID: 'yWeight',
-            spanGaps: true,
-          }
-        ]
+        datasets: datasets
       },
       options: {
         animation: false, // Prevents points from jumping/bouncing on component re-renders
@@ -221,10 +227,10 @@ export const WeeklyTrendChart: React.FC<WeeklyTrendChartProps> = ({
           },
           yGlucose: {
             type: 'linear',
-            display: true,
+            display: isDiabetic,
             position: 'left',
             title: {
-              display: true,
+              display: isDiabetic,
               text: 'Glicemia (mg/dL)',
               color: '#0D9488',
               font: { weight: 'bold', size: 11 }
@@ -378,20 +384,31 @@ export const WeeklyTrendChart: React.FC<WeeklyTrendChartProps> = ({
           </span>
         </div>
 
-        {/* Target Range Indicator */}
+        {/* Target Weight & Composition Goals */}
         <div className="p-3 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/50">
           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block mb-0.5">
-            Meta Glicêmica Alvo
+            Metas Corporais (Personal & Nutri)
           </span>
-          <div className="flex items-baseline gap-1">
-            <span className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
-              {userProfile.glucoseTargetMin} - {userProfile.glucoseTargetMax}
-            </span>
-            <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">mg/dL</span>
+          <div className="flex flex-col gap-0.5">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-gray-600 dark:text-gray-300">Peso Alvo:</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                {userProfile.targetWeightKg ? `${userProfile.targetWeightKg} kg` : 'N/D'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="text-gray-500 dark:text-gray-400">Massa Magra:</span>
+              <span className="font-semibold text-blue-600 dark:text-blue-400">
+                {userProfile.targetMuscleMassKg ? `${userProfile.targetMuscleMassKg} kg` : 'N/D'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="text-gray-500 dark:text-gray-400">% Gordura:</span>
+              <span className="font-semibold text-amber-600 dark:text-amber-400">
+                {userProfile.targetBodyFatPercentage ? `${userProfile.targetBodyFatPercentage}%` : 'N/D'}
+              </span>
+            </div>
           </div>
-          <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium block mt-0.5">
-            Faixa configurada no perfil
-          </span>
         </div>
       </div>
 

@@ -33,6 +33,9 @@ const Settings: React.FC<SettingsProps> = ({
     const [diabetesType, setDiabetesType] = useState<DiabetesType>(userProfile.diabetesType || DiabetesType.None);
     const [weightKg, setWeightKg] = useState<string>(userProfile.weightKg ? String(userProfile.weightKg) : '');
     const [heightCm, setHeightCm] = useState<string>(userProfile.heightCm ? String(userProfile.heightCm) : '');
+    const [targetWeightKg, setTargetWeightKg] = useState<string>(userProfile.targetWeightKg ? String(userProfile.targetWeightKg) : '');
+    const [targetMuscleMassKg, setTargetMuscleMassKg] = useState<string>(userProfile.targetMuscleMassKg ? String(userProfile.targetMuscleMassKg) : '');
+    const [targetBodyFatPercentage, setTargetBodyFatPercentage] = useState<string>(userProfile.targetBodyFatPercentage ? String(userProfile.targetBodyFatPercentage) : '');
     const [healthGoal, setHealthGoal] = useState<string>(userProfile.healthGoal || 'Prevenção de Diabetes & Saúde');
     const [profileSavedMsg, setProfileSavedMsg] = useState(false);
 
@@ -60,6 +63,9 @@ const Settings: React.FC<SettingsProps> = ({
             diabetesType,
             weightKg: parseFloat(weightKg) || undefined,
             heightCm: parseFloat(heightCm) || undefined,
+            targetWeightKg: parseFloat(targetWeightKg) || undefined,
+            targetMuscleMassKg: parseFloat(targetMuscleMassKg) || undefined,
+            targetBodyFatPercentage: parseFloat(targetBodyFatPercentage) || undefined,
             healthGoal: healthGoal.trim() || 'Prevenção de Diabetes & Saúde',
             bioimpedance: {
                 date: bioDate,
@@ -231,7 +237,7 @@ const Settings: React.FC<SettingsProps> = ({
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                                Peso (kg)
+                                Peso Atual (kg)
                             </label>
                             <input
                                 type="number"
@@ -254,6 +260,57 @@ const Settings: React.FC<SettingsProps> = ({
                                 placeholder="Ex: 175"
                                 className={inputStyle}
                             />
+                        </div>
+                    </div>
+
+                    {/* Metas e Objetivos de Composição Corporal */}
+                    <div className="p-3.5 bg-purple-50/60 dark:bg-purple-950/30 rounded-xl border border-purple-100 dark:border-purple-900/50 space-y-3">
+                        <div className="flex items-center gap-2">
+                            <i className="fas fa-bullseye text-purple-600 dark:text-purple-400"></i>
+                            <h4 className="text-xs font-bold text-purple-900 dark:text-purple-200">
+                                Metas de Composição Corporal (Personal & Nutri)
+                            </h4>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Objetivo de Peso (kg)
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={targetWeightKg}
+                                    onChange={(e) => setTargetWeightKg(e.target.value)}
+                                    placeholder="Ex: 68.0"
+                                    className={inputStyle}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Meta Massa Muscular (kg)
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={targetMuscleMassKg}
+                                    onChange={(e) => setTargetMuscleMassKg(e.target.value)}
+                                    placeholder="Ex: 34.0"
+                                    className={inputStyle}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Meta % Gordura Corporal
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={targetBodyFatPercentage}
+                                    onChange={(e) => setTargetBodyFatPercentage(e.target.value)}
+                                    placeholder="Ex: 18.0"
+                                    className={inputStyle}
+                                />
+                            </div>
                         </div>
                     </div>
 

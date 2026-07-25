@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, GlucoseReading, View, Reminder, MedicationReminder, MealLog, GoalEvaluationResult, SmartMealPairing, WeightLog } from '../types';
+import { UserProfile, GlucoseReading, View, Reminder, MedicationReminder, MealLog, GoalEvaluationResult, SmartMealPairing, WeightLog, DiabetesType } from '../types';
 import FoodAnalyzer from './FoodAnalyzer';
 import DoseRegistrationModal from './DoseRegistrationModal';
 import GlucoseRegistrationModal from './GlucoseRegistrationModal';
@@ -7,6 +7,7 @@ import MealRegistrationModal from './MealRegistrationModal';
 import DailyTip from './DailyTip';
 import SmartMealSuggestionModal from './SmartMealSuggestionModal';
 import WeeklyTrendChart from './WeeklyTrendChart';
+import PartnerSpecialists from './PartnerSpecialists';
 import { evaluateMealsAgainstGoal } from '../services/geminiService';
 
 interface DashboardProps {
@@ -114,6 +115,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
   const [deletingMeal, setDeletingMeal] = useState<MealLog | null>(null);
   const [selectedDeleteReason, setSelectedDeleteReason] = useState<string>('Alimento/quantidade registrada incorretamente');
   const [customDeleteReason, setCustomDeleteReason] = useState<string>('');
+
+  const hasDiabetes = useMemo(() => {
+    return userProfile.diabetesType && userProfile.diabetesType !== DiabetesType.None;
+  }, [userProfile.diabetesType]);
 
   const activeMealLogs = useMemo(() => {
     return (mealLogs || []).filter(m => !m.isDeleted);
@@ -314,17 +319,19 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
               </button>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center">
-              {/* Última Glicemia */}
-              <div className="p-3 bg-teal-50/60 dark:bg-teal-950/30 rounded-xl border border-teal-100 dark:border-teal-900/50 flex flex-col justify-center">
-                  <span className="text-[11px] font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider mb-1">Glicemia</span>
-                  {lastGlucose ? (
-                      <>
-                          <p className="text-2xl font-extrabold text-teal-600 dark:text-teal-400">{lastGlucose.value} <span className="text-xs font-normal">mg/dL</span></p>
-                          <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{lastGlucose.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                      </>
-                  ) : <p className="text-sm font-medium text-gray-400 my-1">N/A</p>}
-              </div>
+            <div className={`grid grid-cols-2 sm:grid-cols-3 ${hasDiabetes ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-3 text-center`}>
+              {/* Última Glicemia (Apenas se o usuário tiver diabetes) */}
+              {hasDiabetes && (
+                <div className="p-3 bg-teal-50/60 dark:bg-teal-950/30 rounded-xl border border-teal-100 dark:border-teal-900/50 flex flex-col justify-center">
+                    <span className="text-[11px] font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider mb-1">Glicemia</span>
+                    {lastGlucose ? (
+                        <>
+                            <p className="text-2xl font-extrabold text-teal-600 dark:text-teal-400">{lastGlucose.value} <span className="text-xs font-normal">mg/dL</span></p>
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{lastGlucose.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                        </>
+                    ) : <p className="text-sm font-medium text-gray-400 my-1">N/A</p>}
+                </div>
+              )}
 
               {/* Carboidratos Totais */}
               <div className="p-3 bg-orange-50/60 dark:bg-orange-950/30 rounded-xl border border-orange-100 dark:border-orange-900/50 flex flex-col justify-center">
@@ -466,7 +473,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
               </div>
               <div>
                 <h3 className="font-bold text-base text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                  Bioimpedância Clínica
+                  Painel de Bioimpedância & Metas Corporais
                   {userProfile.bioimpedance?.professionalName && (
                     <span className="text-[11px] font-normal text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded-full border border-teal-200 dark:border-teal-800">
                       <i className="fas fa-user-doctor mr-1"></i>
@@ -475,7 +482,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
                   )}
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {userProfile.bioimpedance?.date ? `Avaliação de ${userProfile.bioimpedance.date}` : 'Acompanhada pelo seu nutricionista/médico'}
+                  {userProfile.bioimpedance?.date ? `Avaliação de ${userProfile.bioimpedance.date}` : 'Acompanhada pelo seu nutricionista, médico e personal'}
                 </p>
               </div>
             </div>
@@ -484,8 +491,55 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
               className="text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 text-xs font-semibold flex items-center gap-1 bg-teal-50 dark:bg-teal-950/40 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800/60"
             >
               <i className="fas fa-edit"></i>
-              {userProfile.bioimpedance?.bodyFatPercentage ? 'Atualizar Dados' : 'Cadastrar Exame'}
+              {userProfile.bioimpedance?.bodyFatPercentage ? 'Atualizar Dados / Metas' : 'Cadastrar Exame e Metas'}
             </button>
+          </div>
+
+          {/* Sub-card with Target Metas Comparison */}
+          <div className="mb-4 p-3.5 bg-purple-50/70 dark:bg-purple-950/30 rounded-xl border border-purple-100 dark:border-purple-900/50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                <i className="fas fa-bullseye text-purple-600"></i>
+                Metas Corporais para Treino & Dieta (Personal / Nutri):
+              </span>
+              <button
+                onClick={() => navigateTo(View.Settings)}
+                className="text-[11px] font-semibold text-purple-700 dark:text-purple-300 hover:underline"
+              >
+                Ajustar Metas
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+              <div className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-purple-100 dark:border-purple-900/40">
+                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase block">Peso Atual vs. Meta</span>
+                <span className="text-sm font-extrabold text-purple-700 dark:text-purple-300">
+                  {userProfile.weightKg ? `${userProfile.weightKg} kg` : '--'}
+                </span>
+                <span className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 block mt-0.5">
+                  Meta: {userProfile.targetWeightKg ? `${userProfile.targetWeightKg} kg` : 'Não definida'}
+                </span>
+              </div>
+
+              <div className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-purple-100 dark:border-purple-900/40">
+                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase block">Massa Muscular vs. Meta</span>
+                <span className="text-sm font-extrabold text-blue-600 dark:text-blue-400">
+                  {userProfile.bioimpedance?.muscleMassKg !== undefined ? `${userProfile.bioimpedance.muscleMassKg} kg` : '--'}
+                </span>
+                <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 block mt-0.5">
+                  Meta: {userProfile.targetMuscleMassKg ? `${userProfile.targetMuscleMassKg} kg` : 'Não definida'}
+                </span>
+              </div>
+
+              <div className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-purple-100 dark:border-purple-900/40">
+                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase block">% Gordura vs. Meta</span>
+                <span className="text-sm font-extrabold text-amber-600 dark:text-amber-400">
+                  {userProfile.bioimpedance?.bodyFatPercentage !== undefined ? `${userProfile.bioimpedance.bodyFatPercentage}%` : '--'}
+                </span>
+                <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 block mt-0.5">
+                  Meta: {userProfile.targetBodyFatPercentage ? `${userProfile.targetBodyFatPercentage}%` : 'Não definida'}
+                </span>
+              </div>
+            </div>
           </div>
 
           {userProfile.bioimpedance?.bodyFatPercentage || userProfile.bioimpedance?.basalMetabolicRateKcal || userProfile.bioimpedance?.professionalNotes ? (
@@ -552,6 +606,11 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
               </button>
             </div>
           )}
+        </div>
+
+        {/* Componente de Profissionais e Especialistas Indicados */}
+        <div className="md:col-span-2 lg:col-span-3">
+          <PartnerSpecialists userProfile={userProfile} mealLogs={mealLogs} glucoseReadings={glucoseReadings} />
         </div>
 
         {/* Refeições Registradas Hoje */}
@@ -651,10 +710,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
       {/* Floating Action Buttons */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm p-4 border-t border-gray-200 dark:border-gray-700 z-30">
         <div className="max-w-lg mx-auto flex justify-around">
-            <FAB icon="fa-plus-circle" onClick={() => setGlucoseModalOpen(true)} label="Glicose" />
+            {hasDiabetes && <FAB icon="fa-plus-circle" onClick={() => setGlucoseModalOpen(true)} label="Glicose" />}
             <FAB icon="fa-utensils" onClick={() => setMealModalOpen(true)} label="Refeição" />
             <FAB icon="fa-camera" onClick={() => setAnalyzerOpen(true)} label="Analisar IA" />
-            <FAB icon="fa-syringe" onClick={() => userProfile.useInsulin ? setDoseModalOpen(true) : alert('Função para usuários de insulina.')} label="Dose" />
+            {userProfile.useInsulin && <FAB icon="fa-syringe" onClick={() => setDoseModalOpen(true)} label="Dose" />}
             <FAB icon="fa-book-open" onClick={() => navigateTo(View.CommunityRecipes)} label="Receitas" />
         </div>
       </div>
