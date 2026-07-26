@@ -1,20 +1,22 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import Onboarding from './components/Onboarding';
-import Dashboard from './components/Dashboard';
-import Reports from './components/Reports';
-import StockManagement from './components/StockManagement';
-import CommunityRecipes from './components/CommunityRecipes';
-import Settings from './components/Settings';
-import Feedback from './components/Feedback';
+import React, { useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import FirebaseAuthBar from './components/FirebaseAuthBar';
 import SEOHead from './components/SEOHead';
 import CookieConsentBanner from './components/CookieConsentBanner';
-import PrivacyPolicyPage from './components/PrivacyPolicyPage';
-import TermsOfServicePage from './components/TermsOfServicePage';
-import CookiePolicyPage from './components/CookiePolicyPage';
 import Footer from './components/Footer';
 import { UserProfile, View, Recipe, Reminder, GlucoseReading, MealLog, WeightLog } from './types';
 import { User } from './src/firebase';
+
+// Lazy loaded views for code splitting & LCP bundle optimization
+const Onboarding = lazy(() => import('./components/Onboarding'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const Reports = lazy(() => import('./components/Reports'));
+const StockManagement = lazy(() => import('./components/StockManagement'));
+const CommunityRecipes = lazy(() => import('./components/CommunityRecipes'));
+const Settings = lazy(() => import('./components/Settings'));
+const Feedback = lazy(() => import('./components/Feedback'));
+const PrivacyPolicyPage = lazy(() => import('./components/PrivacyPolicyPage'));
+const TermsOfServicePage = lazy(() => import('./components/TermsOfServicePage'));
+const CookiePolicyPage = lazy(() => import('./components/CookiePolicyPage'));
 import {
   syncUserProfileToFirestore,
   fetchUserProfileFromFirestore,
@@ -499,12 +501,26 @@ const App: React.FC = () => {
     }
   };
 
+const ViewLoadingFallback = () => (
+  <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center" id="view-loading-fallback">
+    <div className="relative w-16 h-16 mb-4">
+      <div className="absolute inset-0 rounded-full border-4 border-teal-200 dark:border-teal-900 animate-ping opacity-25"></div>
+      <div className="w-16 h-16 rounded-full border-4 border-teal-600 dark:border-teal-400 border-t-transparent animate-spin"></div>
+    </div>
+    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 animate-pulse">
+      Carregando experiência em saúde...
+    </p>
+  </div>
+);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans text-gray-800 dark:text-gray-200 flex flex-col">
       <SEOHead />
       <FirebaseAuthBar onUserChanged={handleUserChanged} />
       <div className="flex-1">
-        {renderView()}
+        <Suspense fallback={<ViewLoadingFallback />}>
+          {renderView()}
+        </Suspense>
       </div>
       <Footer
         onNavigate={navigateTo}

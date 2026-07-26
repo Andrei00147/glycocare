@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // Helper functions for security and authentication
     function isSignedIn() {
       return request.auth != null;
     }
@@ -20,35 +20,90 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // User Profile
+    // User Profile Validation
+    function isValidUserProfile(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.diabetesType is string && data.diabetesType.size() <= 100
+        && (data.useInsulin is bool)
+        && (data.useOralMedication is bool)
+        && (data.glucoseTargetMin is number && data.glucoseTargetMin >= 20 && data.glucoseTargetMin <= 500)
+        && (data.glucoseTargetMax is number && data.glucoseTargetMax >= 20 && data.glucoseTargetMax <= 500);
+    }
+
+    // User Profile Document
     match /users/{userId} {
-      allow read, write, create, update: if isOwner(userId) && isValidId(userId);
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(request.resource.data);
+      allow delete: if isOwner(userId);
 
       // User Glucose Readings
+      function isValidGlucoseReading(data) {
+        return data.value is number && data.value >= 10 && data.value <= 1000
+          && data.timestamp is string
+          && data.userId == userId;
+      }
+
       match /glucoseReadings/{readingId} {
-        allow read, write, create, update, delete: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidGlucoseReading(request.resource.data);
+        allow delete: if isOwner(userId);
       }
 
       // User Meal Logs
+      function isValidMealLog(data) {
+        return data.carbohydrates is number && data.carbohydrates >= 0
+          && data.sugars is number && data.sugars >= 0
+          && data.timestamp is string
+          && data.userId == userId;
+      }
+
       match /mealLogs/{mealId} {
-        allow read, write, create, update, delete: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidMealLog(request.resource.data);
+        allow delete: if isOwner(userId);
       }
 
       // User Weight Logs
+      function isValidWeightLog(data) {
+        return data.weightKg is number && data.weightKg >= 10 && data.weightKg <= 500
+          && data.timestamp is string
+          && data.userId == userId;
+      }
+
       match /weightLogs/{weightId} {
-        allow read, write, create, update, delete: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidWeightLog(request.resource.data);
+        allow delete: if isOwner(userId);
       }
 
       // User Insulin Doses
+      function isValidInsulinDose(data) {
+        return data.units is number && data.units >= 0 && data.units <= 300
+          && data.timestamp is string
+          && data.userId == userId;
+      }
+
       match /insulinDoses/{doseId} {
-        allow read, write, create, update, delete: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidInsulinDose(request.resource.data);
+        allow delete: if isOwner(userId);
       }
     }
 
     // Community Recipes
+    function isValidRecipe(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.author is string && data.author.size() <= 100
+        && data.authorUid == request.auth.uid
+        && data.ingredients is string && data.ingredients.size() <= 2000
+        && data.instructions is string && data.instructions.size() <= 5000
+        && data.carbohydrates is number && data.carbohydrates >= 0
+        && data.calories is number && data.calories >= 0;
+    }
+
     match /communityRecipes/{recipeId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.authorUid == request.auth.uid;
+      allow read: if true;
+      allow create: if isSignedIn() && isValidRecipe(request.resource.data);
       allow update, delete: if isSignedIn() && resource.data.authorUid == request.auth.uid;
     }
   }

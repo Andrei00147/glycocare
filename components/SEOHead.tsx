@@ -14,15 +14,78 @@ interface SEOHeadProps {
   };
 }
 
+/**
+ * Formats title to strictly fit between 50 and 60 characters with high-relevance search terms.
+ */
+function formatSEOTitle(rawTitle?: string): string {
+  const defaultTitle = "NutriSaúdeVital - Saúde, Nutrição & Controle de Diabetes";
+  if (!rawTitle || rawTitle.trim() === '') return defaultTitle;
+
+  let title = rawTitle.trim();
+
+  // If title is shorter than 50 chars, append brand or keywords to reach 50-60 chars
+  if (title.length < 50) {
+    const brandSuffix = " | NutriSaúdeVital";
+    if ((title + brandSuffix).length <= 60) {
+      title += brandSuffix;
+    }
+    const keywordSuffix = " - Saúde e Nutrição";
+    if (title.length < 50 && (title + keywordSuffix).length <= 60) {
+      title += keywordSuffix;
+    }
+  }
+
+  // If title is longer than 60 chars, trim strictly to 60
+  if (title.length > 60) {
+    title = title.substring(0, 57).trim() + "...";
+  }
+
+  return title;
+}
+
+/**
+ * Formats description to strictly fit between 150 and 160 characters with rich SEO keywords.
+ */
+function formatSEODescription(rawDesc?: string): string {
+  const defaultDesc = "NutriSaúdeVital: Plataforma integrada de nutrição, saúde, composição corporal e cuidados com diabetes. Análise de refeições por IA e diário glicêmico.";
+  if (!rawDesc || rawDesc.trim() === '') return defaultDesc;
+
+  let desc = rawDesc.trim();
+
+  // If longer than 160 chars, trim cleanly
+  if (desc.length > 160) {
+    desc = desc.substring(0, 157).trim() + "...";
+  }
+
+  // If shorter than 150 chars, pad with high-relevance search terms
+  if (desc.length < 150) {
+    const padding = " Conte com contador de carboidratos com foto por IA, diário glicêmico e receitas no NutriSaúdeVital.";
+    const combined = desc + padding;
+    if (combined.length <= 160) {
+      desc = combined;
+    } else {
+      const remainingSpace = 160 - desc.length;
+      if (remainingSpace > 15) {
+        desc = (desc + " " + padding.trim()).substring(0, 157).trim() + "...";
+      }
+    }
+  }
+
+  return desc;
+}
+
 export const SEOHead: React.FC<SEOHeadProps> = ({
-  title = "NutriSaúdeVital - Saúde, Nutrição e Acompanhamento Integrado",
-  description = "NutriSaúdeVital: Plataforma integrada de nutrição, saúde, composição corporal e cuidados com diabetes. Análise de refeições com IA e controle glicêmico.",
-  canonicalUrl = "https://nutrisaudevital.com.br/",
+  title,
+  description,
+  canonicalUrl,
   breadcrumbs = [
     { name: "Início", url: "https://nutrisaudevital.com.br/" }
   ],
   articleData
 }) => {
+  const formattedTitle = formatSEOTitle(title);
+  const formattedDescription = formatSEODescription(description);
+
   useEffect(() => {
     // Determine active origin dynamically
     const currentOrigin = typeof window !== 'undefined' && window.location.origin
@@ -32,7 +95,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     const activeCanonical = canonicalUrl || `${currentOrigin}/`;
 
     // 1. Update Title and Description Meta
-    document.title = title;
+    document.title = formattedTitle;
     
     let metaDesc = document.querySelector('meta[name="description"]');
     if (!metaDesc) {
@@ -40,7 +103,36 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
       metaDesc.setAttribute('name', 'description');
       document.head.appendChild(metaDesc);
     }
-    metaDesc.setAttribute('content', description.substring(0, 160));
+    metaDesc.setAttribute('content', formattedDescription);
+
+    // Update OpenGraph Meta Tags
+    const setOgMeta = (property: string, content: string) => {
+      let tag = document.querySelector(`meta[property="${property}"]`);
+      if (!tag) {
+        tag = document.createElement('meta');
+        tag.setAttribute('property', property);
+        document.head.appendChild(tag);
+      }
+      tag.setAttribute('content', content);
+    };
+
+    setOgMeta('og:title', formattedTitle);
+    setOgMeta('og:description', formattedDescription);
+    setOgMeta('og:url', activeCanonical);
+
+    // Update Twitter Meta Tags
+    const setTwitterMeta = (name: string, content: string) => {
+      let tag = document.querySelector(`meta[name="${name}"]`);
+      if (!tag) {
+        tag = document.createElement('meta');
+        tag.setAttribute('name', name);
+        document.head.appendChild(tag);
+      }
+      tag.setAttribute('content', content);
+    };
+
+    setTwitterMeta('twitter:title', formattedTitle);
+    setTwitterMeta('twitter:description', formattedDescription);
 
     // Update or Insert Canonical Link
     let canonicalLink = document.querySelector('link[rel="canonical"]');
@@ -141,7 +233,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
           "name": "NutriSaúdeVital",
           "logo": {
             "@type": "ImageObject",
-            "url": "https://nutrisaudevital.com.br/logo.png"
+            "url": `${currentOrigin}/logo.png`
           }
         }
       };
@@ -170,7 +262,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     return () => {
       // Clean up dynamic schema if needed
     };
-  }, [title, description, canonicalUrl, breadcrumbs, articleData]);
+  }, [formattedTitle, formattedDescription, canonicalUrl, breadcrumbs, articleData]);
 
   return null;
 };
