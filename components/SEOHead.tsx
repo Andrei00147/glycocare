@@ -24,6 +24,13 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
   articleData
 }) => {
   useEffect(() => {
+    // Determine active origin dynamically
+    const currentOrigin = typeof window !== 'undefined' && window.location.origin
+      ? window.location.origin
+      : 'https://nutrisaudevital.com.br';
+
+    const activeCanonical = canonicalUrl || `${currentOrigin}/`;
+
     // 1. Update Title and Description Meta
     document.title = title;
     
@@ -35,16 +42,25 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     }
     metaDesc.setAttribute('content', description.substring(0, 160));
 
+    // Update or Insert Canonical Link
+    let canonicalLink = document.querySelector('link[rel="canonical"]');
+    if (!canonicalLink) {
+      canonicalLink = document.createElement('link');
+      canonicalLink.setAttribute('rel', 'canonical');
+      document.head.appendChild(canonicalLink);
+    }
+    canonicalLink.setAttribute('href', activeCanonical);
+
     // 2. Organization & WebSite JSON-LD Schema
     const websiteSchema = {
       "@context": "https://schema.org",
       "@type": "WebSite",
       "name": "NutriSaúdeVital",
-      "alternateName": "Nutri Saúde Vital",
-      "url": "https://nutrisaudevital.com.br/",
+      "alternateName": ["Nutri Saúde Vital", "GlycoCare"],
+      "url": currentOrigin,
       "potentialAction": {
         "@type": "SearchAction",
-        "target": "https://nutrisaudevital.com.br/?s={search_term_string}",
+        "target": `${currentOrigin}/?s={search_term_string}`,
         "query-input": "required name=search_term_string"
       }
     };
@@ -53,11 +69,12 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
       "@context": "https://schema.org",
       "@type": "Organization",
       "name": "NutriSaúdeVital",
-      "url": "https://nutrisaudevital.com.br/",
-      "logo": "https://nutrisaudevital.com.br/logo.png",
+      "url": currentOrigin,
+      "logo": `${currentOrigin}/logo.png`,
       "sameAs": [
-        "https://www.instagram.com/nutrisaudevital",
-        "https://www.facebook.com/nutrisaudevital"
+        "https://nutrisaudevital.com.br/",
+        "https://nutrisaudevital.vercel.app/",
+        "https://glycocare-five.vercel.app/"
       ]
     };
 

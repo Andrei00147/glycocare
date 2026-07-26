@@ -1,4 +1,4 @@
-# robots.txt for nutrisaudevital.com.br
+# robots.txt for nutrisaudevital.com.br & nutrisaudevital.vercel.app
 User-agent: *
 Allow: /
 Disallow: /admin/
@@ -6,3 +6,4 @@ Disallow: /api/
 Disallow: /private/
 
 Sitemap: https://nutrisaudevital.com.br/sitemap.xml
+Sitemap: https://nutrisaudevital.vercel.app/sitemap.xml
