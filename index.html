@@ -1,13 +1,51 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NutriSaúdeVital - Saúde, Nutrição e Acompanhamento Integrado</title>
+    
+    <!-- Meta SEO Básico -->
+    <meta name="description" content="NutriSaúdeVital: Plataforma integrada de nutrição, saúde, composição corporal e cuidados com diabetes. Análise de refeições com IA e controle glicêmico." />
+    <meta name="keywords" content="nutrição, saúde, diabetes, glicemia, contagem de carboidratos, dieta, personal trainer, composição corporal, bioimpedância" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <link rel="canonical" href="https://nutrisaudevital.com.br/" />
+
+    <!-- Open Graph / Facebook / WhatsApp -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://nutrisaudevital.com.br/" />
+    <meta property="og:title" content="NutriSaúdeVital - Saúde, Nutrição e Acompanhamento Integrado" />
+    <meta property="og:description" content="Acompanhe sua nutrição, glicemia, composição corporal e receba planos de treinos e dieta com ajuda da inteligência artificial." />
+    <meta property="og:site_name" content="NutriSaúdeVital" />
+    <meta property="og:locale" content="pt_BR" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NutriSaúdeVital - Saúde, Nutrição e Acompanhamento Integrado" />
+    <meta name="twitter:description" content="Acompanhe sua nutrição, glicemia, composição corporal e receba planos de treinos e dieta com ajuda da inteligência artificial." />
+
+    <!-- Content Security Policy (CSP) para Segurança e AdSense -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://*.google.com https://*.googleapis.com https://*.gstatic.com https://*.googletagmanager.com https://*.google-analytics.com https://pagead2.googlesyndication.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self' https: wss:; frame-src 'self' https:;" />
+
+    <!-- Google Consent Mode v2 (Inicialização Padrão) -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('consent', 'default', {
+        'ad_storage': 'denied',
+        'ad_user_data': 'denied',
+        'ad_personalization': 'denied',
+        'analytics_storage': 'denied',
+        'functionality_storage': 'granted',
+        'security_storage': 'granted',
+        'wait_for_update': 500
+      });
+    </script>
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
   <body class="bg-gray-50 dark:bg-gray-900">
     <div id="root"></div>

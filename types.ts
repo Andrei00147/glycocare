@@ -82,6 +82,9 @@ export enum View {
   CommunityRecipes,
   Settings,
   Feedback,
+  PrivacyPolicy,
+  TermsOfService,
+  CookiePolicy,
 }
 
 export interface GlucoseReading {

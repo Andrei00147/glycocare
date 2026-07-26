@@ -7,6 +7,12 @@ import CommunityRecipes from './components/CommunityRecipes';
 import Settings from './components/Settings';
 import Feedback from './components/Feedback';
 import FirebaseAuthBar from './components/FirebaseAuthBar';
+import SEOHead from './components/SEOHead';
+import CookieConsentBanner from './components/CookieConsentBanner';
+import PrivacyPolicyPage from './components/PrivacyPolicyPage';
+import TermsOfServicePage from './components/TermsOfServicePage';
+import CookiePolicyPage from './components/CookiePolicyPage';
+import Footer from './components/Footer';
 import { UserProfile, View, Recipe, Reminder, GlucoseReading, MealLog, WeightLog } from './types';
 import { User } from './src/firebase';
 import {
@@ -413,8 +419,11 @@ const App: React.FC = () => {
     setCurrentView(View.Onboarding);
   };
 
+  const [forceOpenCookieModal, setForceOpenCookieModal] = useState(false);
+
   const navigateTo = (view: View) => {
     setCurrentView(view);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const renderView = () => {
@@ -474,6 +483,17 @@ const App: React.FC = () => {
         ) : <Onboarding onComplete={handleOnboardingComplete} />;
       case View.Feedback:
         return <Feedback onBack={() => navigateTo(View.Dashboard)} />;
+      case View.PrivacyPolicy:
+        return <PrivacyPolicyPage onBack={() => navigateTo(userProfile ? View.Dashboard : View.Onboarding)} />;
+      case View.TermsOfService:
+        return <TermsOfServicePage onBack={() => navigateTo(userProfile ? View.Dashboard : View.Onboarding)} />;
+      case View.CookiePolicy:
+        return (
+          <CookiePolicyPage
+            onBack={() => navigateTo(userProfile ? View.Dashboard : View.Onboarding)}
+            onOpenPreferences={() => setForceOpenCookieModal(true)}
+          />
+        );
       default:
         return <Onboarding onComplete={handleOnboardingComplete} />;
     }
@@ -481,10 +501,19 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans text-gray-800 dark:text-gray-200 flex flex-col">
+      <SEOHead />
       <FirebaseAuthBar onUserChanged={handleUserChanged} />
       <div className="flex-1">
         {renderView()}
       </div>
+      <Footer
+        onNavigate={navigateTo}
+        onOpenCookiePreferences={() => setForceOpenCookieModal(true)}
+      />
+      <CookieConsentBanner
+        forceOpenModal={forceOpenCookieModal}
+        onModalClose={() => setForceOpenCookieModal(false)}
+      />
     </div>
   );
 };

@@ -1,0 +1,2 @@
+# Google AdSense app-ads.txt file for nutrisaudevital.com.br
+google.com, pub-0000000000000000, DIRECT, f00c28294d71558d
