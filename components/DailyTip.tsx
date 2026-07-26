@@ -236,7 +236,7 @@ export const DailyTip: React.FC<DailyTipProps> = ({ userProfile }) => {
   }, [userProfile?.diabetesType, userProfile?.useInsulin, userProfile?.healthGoal, userProfile?.name]);
 
   const handleCopyTip = async () => {
-    const textToCopy = `💡 Dica GlycoCare - ${currentTip.title}\n\n${currentTip.content}`;
+    const textToCopy = `💡 Dica NutriSaúdeVital - ${currentTip.title}\n\n${currentTip.content}`;
     try {
       await navigator.clipboard.writeText(textToCopy);
       setCopied(true);

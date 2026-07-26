@@ -671,7 +671,7 @@ const Settings: React.FC<SettingsProps> = ({
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mt-6">
                 <h2 className="text-xl font-semibold mb-4 border-b dark:border-gray-700 pb-2">Suporte & Feedback</h2>
-                <p className="text-gray-600 dark:text-gray-400 mb-4 text-sm">Sua opinião é muito importante para nós! Ajude-nos a melhorar o GlycoCare.</p>
+                <p className="text-gray-600 dark:text-gray-400 mb-4 text-sm">Sua opinião é muito importante para nós! Ajude-nos a melhorar o NutriSaúdeVital.</p>
                 <button onClick={() => navigateTo(View.Feedback)} className="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 flex items-center justify-center">
                     <i className="fas fa-comment-alt mr-2"></i>
                     Enviar Feedback

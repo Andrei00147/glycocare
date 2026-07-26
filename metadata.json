@@ -1,6 +1,6 @@
 {
-  "name": "GlycoCare",
-  "description": "An innovative application for diabetes management that acts as a personal assistant. It features AI-powered food analysis, a community for sharing safe recipes, and an intelligent insulin stock management system.",
+  "name": "NutriSaúdeVital",
+  "description": "Plataforma completa de saúde, nutrição, composição corporal e treinos. Recursos com inteligência artificial para análise de refeições, metas corporais para personal trainer e acompanhamento integrativo com profissionais.",
   "requestFramePermissions": [
     "camera"
   ],

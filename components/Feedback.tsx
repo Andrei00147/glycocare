@@ -32,7 +32,7 @@ const Feedback: React.FC<FeedbackProps> = ({ onBack }) => {
                 <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md">
                     <i className="fas fa-check-circle text-5xl text-green-500 mb-4"></i>
                     <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Feedback Enviado!</h1>
-                    <p className="text-gray-600 dark:text-gray-300 mb-6">Obrigado por nos ajudar a melhorar o GlycoCare. Valorizamos sua opinião.</p>
+                    <p className="text-gray-600 dark:text-gray-300 mb-6">Obrigado por nos ajudar a melhorar o NutriSaúdeVital. Valorizamos sua opinião.</p>
                     <button onClick={onBack} className="w-full bg-teal-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-teal-600 transition duration-300">
                         Voltar ao Início
                     </button>

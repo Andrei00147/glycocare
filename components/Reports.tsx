@@ -502,7 +502,7 @@ export const Reports: React.FC<ReportsProps> = ({
       }
 
       const formattedName = userProfile.name ? userProfile.name.replace(/\s+/g, '_') : 'Paciente';
-      pdf.save(`Relatorio_Semanal_GlycoCare_${formattedName}.pdf`);
+      pdf.save(`Relatorio_Semanal_NutriSaudeVital_${formattedName}.pdf`);
     } catch (error) {
       console.error("Erro ao gerar relatório PDF:", error);
       alert("Houve um erro ao tentar gerar o arquivo PDF. Tente novamente.");
@@ -578,7 +578,7 @@ export const Reports: React.FC<ReportsProps> = ({
                 <i className="fas fa-heart-pulse"></i>
               </span>
               <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                GlycoCare — Relatório Consolidado de Saúde
+                NutriSaúdeVital — Relatório Consolidado de Saúde
               </h2>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -1028,8 +1028,8 @@ export const Reports: React.FC<ReportsProps> = ({
 
         {/* Footer Disclaimer */}
         <footer className="text-center text-[11px] text-gray-400 dark:text-gray-500 pt-4 border-t dark:border-gray-700">
-          <p>GlycoCare — Sistema Inteligente de Acompanhamento Diabetológico e Nutricional.</p>
-          <p>Este relatório é apenas para fins de apoio ao automonitoramento e não substitui o aconselhamento do seu médico ou nutricionista.</p>
+          <p>NutriSaúdeVital — Sistema Inteligente de Acompanhamento Nutricional, Saúde e Fitness.</p>
+          <p>Este relatório é apenas para fins de apoio ao automonitoramento e não substitui o aconselhamento do seu médico, nutricionista ou personal trainer.</p>
         </footer>
       </div>
 

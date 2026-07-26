@@ -225,8 +225,28 @@ const Onboarding: React.FC<OnboardingProps> = ({ initialProfile, onComplete, onC
         <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-center overflow-y-auto">
             <div className="animate-fade-in w-full max-w-4xl mx-auto py-8">
                 <i className="fas fa-heart-pulse text-5xl text-white mb-4"></i>
-                <h1 className="text-5xl font-bold mb-4">Uma vida mais saudável com GlycoCare</h1>
-                <p className="text-xl max-w-2xl mx-auto mb-10">Sua plataforma completa para gerenciar o diabetes com mais confiança e tranquilidade.</p>
+                <h1 className="text-5xl font-bold mb-4">Uma vida mais saudável com NutriSaúdeVital</h1>
+                <p className="text-xl max-w-2xl mx-auto mb-8">Sua plataforma completa para saúde, nutrição, composição corporal, treinos e acompanhamento metabólico.</p>
+
+                {/* Card Destaque: Plano Especializado para Diabetes */}
+                <div className="mb-8 p-6 bg-white/25 backdrop-blur-md rounded-2xl shadow-xl border-2 border-amber-300/80 text-left relative overflow-hidden transform hover:-translate-y-1 transition duration-300">
+                    <div className="absolute top-3 right-3 bg-amber-400 text-teal-950 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1">
+                        <i className="fas fa-star"></i> Plano Dedicado & Exclusivo
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                        <div className="p-3.5 bg-amber-400 text-teal-900 rounded-2xl text-2xl shadow-md flex-shrink-0">
+                            <i className="fas fa-droplet font-bold"></i>
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-extrabold text-white flex items-center gap-2">
+                                Cuidado Especializado para Diabetes & Controle Glicêmico
+                            </h3>
+                            <p className="text-sm text-white/95 mt-1 leading-relaxed">
+                                Nossas origens continuam no coração do aplicativo! Oferecemos uma trilha totalmente personalizada para diabetes, com contagem automática de carboidratos via foto com IA, diário glicêmico, gestão de estoque de insulinas/medicamentos e relatórios completos para seu médico.
+                            </p>
+                        </div>
+                    </div>
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
                     {features.map(feature => (
@@ -267,7 +287,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ initialProfile, onComplete, onC
             {currentStepName === 'disclaimer' && (
                 <QuestionCard title="Aviso Importante">
                     <div className="bg-yellow-400/80 border-l-4 border-yellow-600 text-yellow-900 p-4 rounded-md mb-6 text-sm" role="alert">
-                        <p className="font-bold">O GlycoCare é uma ferramenta de apoio e não substitui o acompanhamento de um profissional de saúde. Consulte sempre seu médico.</p>
+                        <p className="font-bold">O NutriSaúdeVital é uma ferramenta de apoio e não substitui o acompanhamento de um profissional de saúde. Consulte sempre seu médico, nutricionista ou personal trainer.</p>
                     </div>
                     <label className="flex items-center p-3 bg-white/20 rounded-lg cursor-pointer">
                         <input type="checkbox" className="form-checkbox h-5 w-5 bg-transparent border-white text-teal-500 rounded focus:ring-white/50" checked={disclaimerAccepted} onChange={(e) => setDisclaimerAccepted(e.target.checked)} />

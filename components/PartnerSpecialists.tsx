@@ -27,7 +27,7 @@ const DEFAULT_SPECIALISTS: PartnerSpecialist[] = [
     specialty: 'Nutrição Esportiva & Cuidado Funcional',
     registrationNumber: 'CRN 87412-SP',
     photoUrl: 'https://images.unsplash.com/photo-1594824813566-88855ce7890b?auto=format&fit=crop&q=80&w=250',
-    bio: 'Elabora estratégias personalizadas de contagem de carboidratos, aporte proteico e refeições alinhadas diretamente aos registros do app GlycoCare.',
+    bio: 'Elabora estratégias personalizadas de contagem de carboidratos, aporte proteico e refeições alinhadas diretamente aos registros do app NutriSaúdeVital.',
     whatsapp: '5511999990002',
     supportsMonthlyMonitoring: true,
     rating: 5.0
@@ -83,7 +83,7 @@ export const PartnerSpecialists: React.FC<PartnerSpecialistsProps> = ({
     const fatTargetStr = userProfile.targetBodyFatPercentage ? `${userProfile.targetBodyFatPercentage}%` : 'não definida';
     const goalStr = userProfile.healthGoal || 'Prevenção & Saúde';
 
-    const defaultMessage = `Olá, ${spec.name}! Gostaria de solicitar informações sobre o Acompanhamento Mensal.\n\nMinhas métricas atuais no GlycoCare:\n• Nome: ${userProfile.name}\n• Objetivo Principal: ${goalStr}\n• Peso Atual: ${weightStr} (Meta: ${targetWeightStr})\n• Meta de Massa Magra: ${muscleTargetStr}\n• Meta de % Gordura: ${fatTargetStr}\n\nAguardo seu retorno para alinharmos o acompanhamento!`;
+    const defaultMessage = `Olá, ${spec.name}! Gostaria de solicitar informações sobre o Acompanhamento Mensal.\n\nMinhas métricas atuais no NutriSaúdeVital:\n• Nome: ${userProfile.name}\n• Objetivo Principal: ${goalStr}\n• Peso Atual: ${weightStr} (Meta: ${targetWeightStr})\n• Meta de Massa Magra: ${muscleTargetStr}\n• Meta de % Gordura: ${fatTargetStr}\n\nAguardo seu retorno para alinharmos o acompanhamento!`;
 
     setCustomMsg(defaultMessage);
   };

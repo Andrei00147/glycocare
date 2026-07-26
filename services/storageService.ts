@@ -191,7 +191,7 @@ export const exportDataBackup = (
   const downloadAnchor = document.createElement('a');
   downloadAnchor.setAttribute('href', jsonString);
   const dateStr = new Date().toISOString().slice(0, 10);
-  downloadAnchor.setAttribute('download', `GlycoCare_Backup_${dateStr}.json`);
+  downloadAnchor.setAttribute('download', `NutriSaudeVital_Backup_${dateStr}.json`);
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
   downloadAnchor.remove();
