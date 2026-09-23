@@ -84,15 +84,15 @@ export const saveRecipes = (recipes: Recipe[]): void => {
   }
 };
 
-export const loadRecipes = (defaultRecipes: Recipe[]): Recipe[] => {
+export const loadRecipes = (defaultRecipes: Recipe[] = []): Recipe[] => {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.CUSTOM_RECIPES);
-    if (!data) return defaultRecipes;
+    if (!data) return defaultRecipes || [];
     const parsed = JSON.parse(data);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : defaultRecipes;
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : (defaultRecipes || []);
   } catch (err) {
     console.error('Failed to load recipes from storage:', err);
-    return defaultRecipes;
+    return defaultRecipes || [];
   }
 };
 

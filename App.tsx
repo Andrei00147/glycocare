@@ -202,8 +202,8 @@ export const App: React.FC = () => {
     return loadGlucoseReadings();
   });
   const [recipes, setRecipes] = useState<Recipe[]>(() => {
-    const loaded = loadRecipes();
-    return loaded.length > 0 ? loaded : initialRecipes;
+    const loaded = loadRecipes(initialRecipes);
+    return Array.isArray(loaded) && loaded.length > 0 ? loaded : initialRecipes;
   });
   const [mealLogs, setMealLogs] = useState<MealLog[]>(() => {
     return loadMealLogs();
@@ -350,10 +350,10 @@ export const App: React.FC = () => {
 
       // 2. Glucose Readings Sync
       const remoteGlucose = await fetchGlucoseReadingsFromFirestore(user.uid);
-      if (remoteGlucose && remoteGlucose.length > 0) {
+      if (Array.isArray(remoteGlucose) && remoteGlucose.length > 0) {
         setGlucoseReadings(remoteGlucose);
         saveGlucoseReadings(remoteGlucose);
-      } else if (glucoseReadingsRef.current.length > 0) {
+      } else if (Array.isArray(glucoseReadingsRef.current) && glucoseReadingsRef.current.length > 0) {
         for (const reading of glucoseReadingsRef.current) {
           await addGlucoseReadingToFirestore(user.uid, reading);
         }
@@ -361,10 +361,10 @@ export const App: React.FC = () => {
 
       // 3. Meal Logs Sync
       const remoteMeals = await fetchMealLogsFromFirestore(user.uid);
-      if (remoteMeals && remoteMeals.length > 0) {
+      if (Array.isArray(remoteMeals) && remoteMeals.length > 0) {
         setMealLogs(remoteMeals);
         saveMealLogs(remoteMeals);
-      } else if (mealLogsRef.current.length > 0) {
+      } else if (Array.isArray(mealLogsRef.current) && mealLogsRef.current.length > 0) {
         for (const meal of mealLogsRef.current) {
           await addMealLogToFirestore(user.uid, meal);
         }
@@ -372,10 +372,10 @@ export const App: React.FC = () => {
 
       // 4. Weight Logs Sync
       const remoteWeights = await fetchWeightLogsFromFirestore(user.uid);
-      if (remoteWeights && remoteWeights.length > 0) {
+      if (Array.isArray(remoteWeights) && remoteWeights.length > 0) {
         setWeightLogs(remoteWeights);
         saveWeightLogs(remoteWeights);
-      } else if (weightLogsRef.current.length > 0) {
+      } else if (Array.isArray(weightLogsRef.current) && weightLogsRef.current.length > 0) {
         for (const weight of weightLogsRef.current) {
           await addWeightLogToFirestore(user.uid, weight);
         }
@@ -383,7 +383,7 @@ export const App: React.FC = () => {
 
       // 5. Recipes Sync
       const remoteRecipes = await fetchRecipesFromFirestore();
-      if (remoteRecipes && remoteRecipes.length > 0) {
+      if (Array.isArray(remoteRecipes) && remoteRecipes.length > 0) {
         setRecipes(remoteRecipes);
       }
     } catch (err) {
