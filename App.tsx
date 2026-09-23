@@ -3,8 +3,19 @@ import FirebaseAuthBar from './components/FirebaseAuthBar';
 import SEOHead from './components/SEOHead';
 import CookieConsentBanner from './components/CookieConsentBanner';
 import Footer from './components/Footer';
-import { UserProfile, View, Recipe, Reminder, GlucoseReading, MealLog, WeightLog } from './types';
-import { User } from './src/firebase';
+import PricingPlansModal from './components/PricingPlansModal';
+import {
+  UserProfile,
+  View,
+  Recipe,
+  Reminder,
+  GlucoseReading,
+  MealLog,
+  WeightLog,
+  PatientLink,
+  ProfessionalPartner
+} from './types';
+import { User, auth } from './src/firebase';
 
 // Lazy loaded views for code splitting & LCP bundle optimization
 const Onboarding = lazy(() => import('./components/Onboarding'));
@@ -17,6 +28,9 @@ const Feedback = lazy(() => import('./components/Feedback'));
 const PrivacyPolicyPage = lazy(() => import('./components/PrivacyPolicyPage'));
 const TermsOfServicePage = lazy(() => import('./components/TermsOfServicePage'));
 const CookiePolicyPage = lazy(() => import('./components/CookiePolicyPage'));
+const AdminPartnerManagement = lazy(() => import('./components/AdminPartnerManagement'));
+const ProfessionalPortal = lazy(() => import('./components/ProfessionalPortal'));
+
 import {
   syncUserProfileToFirestore,
   fetchUserProfileFromFirestore,
@@ -29,7 +43,12 @@ import {
   fetchWeightLogsFromFirestore,
   addRecipeToFirestore,
   fetchRecipesFromFirestore,
-  clearUserDataFromFirestore
+  clearUserDataFromFirestore,
+  isUserSuperAdmin,
+  fetchProfessionalPartners,
+  fetchPatientLinkForUser,
+  findPartnerByReferralCode,
+  createOrUpdatePatientLink
 } from './services/firestoreService';
 import {
   loadUserProfile,
@@ -137,44 +156,58 @@ const initialRecipes: Recipe[] = [
         carbohydrates: 18,
         calories: 230,
     },
-     {
+    {
         id: 'd8',
-        title: 'Cookies de Amendoim',
-        author: 'Nutri Carlos',
-        description: 'Cookies macios com apenas 3 ingredientes. Perfeitos para um lanche rápido e sem culpa.',
-        ingredients: '1 xícara de pasta de amendoim integral\n1 ovo\n1/2 xícara de adoçante (xilitol)',
-        instructions: 'Misture todos os ingredientes até formar uma massa. Faça bolinhas, achate com um garfo e coloque em uma forma untada. Asse a 180°C por 12-15 minutos.',
-        carbohydrates: 7,
-        calories: 160,
-    },
-     {
-        id: 'd9',
-        title: 'Bolo de Cenoura de Caneca',
+        title: 'Gelatina Colorida com Iogurte Natural',
         author: 'Doce Vida',
-        description: 'Mate a vontade de bolo de cenoura em 2 minutos com esta receita prática de micro-ondas.',
-        ingredients: '1 ovo\n4 colheres de sopa de leite\n3 colheres de sopa de óleo\n2 colheres de sopa de adoçante\n4 colheres de sopa de farinha de aveia\n1 cenoura pequena ralada\n1/2 colher de chá de fermento',
-        instructions: 'Misture todos os ingredientes em uma caneca grande. Leve ao micro-ondas em potência máxima por cerca de 2 a 3 minutos, ou até firmar. Sirva com calda de chocolate amargo se desejar.',
-        carbohydrates: 22,
-        calories: 280,
+        description: 'Divertida, colorida e cheia de colágeno, usando gelatinas sem açúcar.',
+        ingredients: '3 pacotes de gelatina zero açúcar (sabores diferentes)\n1 pote de iogurte natural desnatado\n1 envelope de gelatina incolor sem sabor',
+        instructions: 'Prepare as gelatinas de sabores conforme embalagem e deixe firmar. Corte em cubos. Dissolva a gelatina incolor e bata com o iogurte. Misture tudo em uma forma e leve para gelar até firmar.',
+        carbohydrates: 2,
+        calories: 60,
     },
-     {
+    {
+        id: 'd9',
+        title: 'Cookies de Banana com Aveia e Cacau',
+        author: 'Nutri Carlos',
+        description: 'Apenas 3 ingredientes para um cookie macio, nutritivo e sem adição de açúcares.',
+        ingredients: '2 bananas maduras amassadas\n1 xícara de aveia em flocos finos\n2 colheres de sopa de cacau em pó 100%',
+        instructions: 'Misture todos os ingredientes em uma tigela. Molde os cookies em uma assadeira untada ou com papel manteiga. Asse em forno pré-aquecido a 180°C por 15 a 20 minutos.',
+        carbohydrates: 18,
+        calories: 95,
+    },
+    {
         id: 'd10',
-        title: 'Bombom de Morango na Travessa',
+        title: 'Trufa Funcional de Cacau e Amêndoas',
         author: 'Chef Ana',
-        description: 'Uma sobremesa incrível que combina o azedinho do morango com um creme branco suave e cobertura de chocolate.',
-        ingredients: 'Creme: 1 lata de leite condensado fake (receita na internet), 1 colher de sopa de amido de milho, 1/2 xícara de leite.\n1 caixa de morangos picados.\nGanache: 100g de chocolate 70% cacau, 1/2 caixa de creme de leite.',
-        instructions: 'Leve os ingredientes do creme ao fogo baixo, mexendo até engrossar. Despeje em uma travessa e cubra com os morangos. Derreta o chocolate com o creme de leite e espalhe por cima. Leve à geladeira.',
-        carbohydrates: 28,
-        calories: 310,
+        description: 'O docinho perfeito para matar a vontade de chocolate com gorduras de alta qualidade.',
+        ingredients: '1 xícara de tâmaras sem caroço hidratadas\n1/2 xícara de farinha de amêndoas\n2 colheres de sopa de cacau em pó\nCacau em pó para enrolar',
+        instructions: 'Processe as tâmaras com a farinha de amêndoas e o cacau até formar uma massa modelável. Faça bolinhas e passe no cacau em pó. Mantenha na geladeira.',
+        carbohydrates: 14,
+        calories: 110,
     }
 ];
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => loadUserProfile());
-  const [recipes, setRecipes] = useState<Recipe[]>(() => loadRecipes(initialRecipes));
-  const [glucoseReadings, setGlucoseReadings] = useState<GlucoseReading[]>(() => loadGlucoseReadings());
-  const [mealLogs, setMealLogs] = useState<MealLog[]>(() => loadMealLogs());
+  const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
+  const [currentProfessionalPartner, setCurrentProfessionalPartner] = useState<ProfessionalPartner | null>(null);
+  const [activePatientLink, setActivePatientLink] = useState<PatientLink | null>(null);
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
+
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
+    return loadUserProfile();
+  });
+  const [glucoseReadings, setGlucoseReadings] = useState<GlucoseReading[]>(() => {
+    return loadGlucoseReadings();
+  });
+  const [recipes, setRecipes] = useState<Recipe[]>(() => {
+    const loaded = loadRecipes();
+    return loaded.length > 0 ? loaded : initialRecipes;
+  });
+  const [mealLogs, setMealLogs] = useState<MealLog[]>(() => {
+    return loadMealLogs();
+  });
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>(() => {
     const loaded = loadWeightLogs();
     if (loaded.length === 0 && userProfile?.weightKg) {
@@ -187,6 +220,28 @@ const App: React.FC = () => {
     }
     return loaded;
   });
+
+  const userProfileRef = React.useRef(userProfile);
+  const glucoseReadingsRef = React.useRef(glucoseReadings);
+  const mealLogsRef = React.useRef(mealLogs);
+  const weightLogsRef = React.useRef(weightLogs);
+
+  useEffect(() => {
+    userProfileRef.current = userProfile;
+  }, [userProfile]);
+
+  useEffect(() => {
+    glucoseReadingsRef.current = glucoseReadings;
+  }, [glucoseReadings]);
+
+  useEffect(() => {
+    mealLogsRef.current = mealLogs;
+  }, [mealLogs]);
+
+  useEffect(() => {
+    weightLogsRef.current = weightLogs;
+  }, [weightLogs]);
+
   const [currentView, setCurrentView] = useState<View>(() => {
     return loadUserProfile() ? View.Dashboard : View.Onboarding;
   });
@@ -209,19 +264,88 @@ const App: React.FC = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // Sync with Firestore when user logs in
+  // Check URL query param for automatic referral code support (e.g. ?ref=NUTRI-JULIANA or ?ref_code=CRM-128492)
+  useEffect(() => {
+    const handleUrlReferral = async () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const refCode = urlParams.get('ref') || urlParams.get('ref_code');
+        if (refCode) {
+          const partner = await findPartnerByReferralCode(refCode);
+          if (partner) {
+            const discountPercent = partner.role === 'Médico' ? 70 : 65;
+            const monthlyPrice = partner.role === 'Médico' ? 10.50 : 12.25;
+
+            handleUpdateProfile({
+              referralCode: partner.referralCode,
+              referredByProfessionalId: partner.id,
+              referredByProfessionalName: partner.name,
+              referredByProfessionalRole: partner.role,
+              discountPercentage: discountPercent,
+              monthlyPlanPrice: monthlyPrice
+            });
+
+            if (auth.currentUser) {
+              const link: PatientLink = {
+                id: `link-${auth.currentUser.uid}`,
+                patientUid: auth.currentUser.uid,
+                patientEmail: auth.currentUser.email || 'usuario@nutrisaudevital.com',
+                patientName: userProfile?.name || 'Paciente',
+                professionalUid: partner.assignedUid || '',
+                professionalEmail: partner.email,
+                professionalName: partner.name,
+                professionalRole: partner.role,
+                referralCode: partner.referralCode,
+                discountPercentage: discountPercent,
+                monthlyPriceBrl: monthlyPrice,
+                status: 'active',
+                linkedAt: new Date().toISOString()
+              };
+              await createOrUpdatePatientLink(link);
+              setActivePatientLink(link);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao processar indicação via URL:', err);
+      }
+    };
+    handleUrlReferral();
+  }, []);
+
+  // Sync with Firestore when user logs in & evaluate RBAC roles
   const handleUserChanged = useCallback(async (user: User | null) => {
     setCurrentUser(user);
-    if (!user) return;
+    if (!user) {
+      setIsSuperAdminUser(false);
+      setCurrentProfessionalPartner(null);
+      setActivePatientLink(null);
+      return;
+    }
 
     try {
+      // 0. RBAC Evaluation: SuperAdmin & Professional detection
+      const isSuper = isUserSuperAdmin(user.email);
+      setIsSuperAdminUser(isSuper);
+
+      // Check if user is an approved professional partner
+      const allPartners = await fetchProfessionalPartners();
+      const matchedPartner = allPartners.find(
+        p => p.email.trim().toLowerCase() === (user.email || '').trim().toLowerCase() && p.active
+      );
+      setCurrentProfessionalPartner(matchedPartner || null);
+
+      // Check if user has an active patient link
+      const patientLink = await fetchPatientLinkForUser(user.uid);
+      setActivePatientLink(patientLink);
+
       // 1. User Profile Sync
       const remoteProfile = await fetchUserProfileFromFirestore(user.uid);
       if (remoteProfile) {
         setUserProfile(remoteProfile);
         saveUserProfile(remoteProfile);
-      } else if (userProfile) {
-        await syncUserProfileToFirestore(user.uid, userProfile);
+      } else if (userProfileRef.current) {
+        await syncUserProfileToFirestore(user.uid, userProfileRef.current);
       }
 
       // 2. Glucose Readings Sync
@@ -229,8 +353,8 @@ const App: React.FC = () => {
       if (remoteGlucose && remoteGlucose.length > 0) {
         setGlucoseReadings(remoteGlucose);
         saveGlucoseReadings(remoteGlucose);
-      } else {
-        for (const reading of glucoseReadings) {
+      } else if (glucoseReadingsRef.current.length > 0) {
+        for (const reading of glucoseReadingsRef.current) {
           await addGlucoseReadingToFirestore(user.uid, reading);
         }
       }
@@ -240,8 +364,8 @@ const App: React.FC = () => {
       if (remoteMeals && remoteMeals.length > 0) {
         setMealLogs(remoteMeals);
         saveMealLogs(remoteMeals);
-      } else {
-        for (const meal of mealLogs) {
+      } else if (mealLogsRef.current.length > 0) {
+        for (const meal of mealLogsRef.current) {
           await addMealLogToFirestore(user.uid, meal);
         }
       }
@@ -251,8 +375,8 @@ const App: React.FC = () => {
       if (remoteWeights && remoteWeights.length > 0) {
         setWeightLogs(remoteWeights);
         saveWeightLogs(remoteWeights);
-      } else {
-        for (const weight of weightLogs) {
+      } else if (weightLogsRef.current.length > 0) {
+        for (const weight of weightLogsRef.current) {
           await addWeightLogToFirestore(user.uid, weight);
         }
       }
@@ -265,7 +389,7 @@ const App: React.FC = () => {
     } catch (err) {
       console.error("Firestore sync error:", err);
     }
-  }, [userProfile, glucoseReadings, mealLogs, weightLogs]);
+  }, []);
 
   // Sync state to local storage database
   useEffect(() => {
@@ -294,6 +418,7 @@ const App: React.FC = () => {
 
   const handleOnboardingComplete = useCallback((profile: UserProfile, initialGlucose?: GlucoseReading) => {
     setUserProfile(profile);
+    saveUserProfile(profile);
     if (initialGlucose) {
       setGlucoseReadings([initialGlucose]);
       if (currentUser) {
@@ -306,15 +431,18 @@ const App: React.FC = () => {
     setCurrentView(View.Dashboard);
   }, [currentUser]);
   
-  const handleUpdateProfile = (updatedProfile: Partial<UserProfile>) => {
+  const handleUpdateProfile = useCallback((updatedProfile: Partial<UserProfile>) => {
     setUserProfile(prev => {
       const next = prev ? { ...prev, ...updatedProfile } : null;
-      if (currentUser && next) {
-        syncUserProfileToFirestore(currentUser.uid, next);
+      if (next) {
+        saveUserProfile(next);
+      }
+      if (auth.currentUser && next) {
+        syncUserProfileToFirestore(auth.currentUser.uid, next);
       }
       return next;
     });
-  };
+  }, []);
   
   const handleAddGlucoseReading = (value: number, timestamp: Date) => {
     const newReading: GlucoseReading = { value, timestamp };
@@ -453,6 +581,8 @@ const App: React.FC = () => {
             onAddWeightLog={handleAddWeightLog}
             theme={theme}
             toggleTheme={toggleTheme}
+            activePatientLink={activePatientLink}
+            onOpenPricingModal={() => setIsPricingModalOpen(true)}
           />
         ) : <Onboarding onComplete={handleOnboardingComplete} />;
       case View.Reports:
@@ -483,6 +613,25 @@ const App: React.FC = () => {
             onResetData={handleResetData}
           />
         ) : <Onboarding onComplete={handleOnboardingComplete} />;
+      case View.AdminPartners:
+        return (
+          <AdminPartnerManagement
+            onBack={() => navigateTo(View.Dashboard)}
+            navigateTo={navigateTo}
+            onSelectPartnerForPortal={(partner) => {
+              setCurrentProfessionalPartner(partner);
+              navigateTo(View.ProfessionalPortal);
+            }}
+          />
+        );
+      case View.ProfessionalPortal:
+        return (
+          <ProfessionalPortal
+            onBack={() => navigateTo(View.Dashboard)}
+            navigateTo={navigateTo}
+            currentProfessionalPartner={currentProfessionalPartner}
+          />
+        );
       case View.Feedback:
         return <Feedback onBack={() => navigateTo(View.Dashboard)} />;
       case View.PrivacyPolicy:
@@ -517,19 +666,111 @@ const ViewLoadingFallback = () => (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans text-gray-800 dark:text-gray-200 flex flex-col">
       <SEOHead />
       <FirebaseAuthBar onUserChanged={handleUserChanged} />
+
+      {/* Role Navigation Bar for SuperAdmin / Healthcare Specialist / Active Referral */}
+      {(isSuperAdminUser || currentProfessionalPartner || activePatientLink) && (
+        <div className="bg-gradient-to-r from-gray-900 via-teal-950 to-gray-900 text-white px-4 py-2 text-xs border-b border-teal-800/40 shadow-inner">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {isSuperAdminUser ? (
+                <span className="bg-amber-400 text-amber-950 font-black px-2 py-0.5 rounded uppercase tracking-wider text-[10px]">
+                  SuperAdmin Ativo
+                </span>
+              ) : currentProfessionalPartner ? (
+                <span className="bg-teal-400 text-teal-950 font-black px-2 py-0.5 rounded uppercase tracking-wider text-[10px]">
+                  {currentProfessionalPartner.role} Credenciado
+                </span>
+              ) : (
+                <span className="bg-emerald-400 text-emerald-950 font-black px-2 py-0.5 rounded uppercase tracking-wider text-[10px]">
+                  Paciente Vinculado
+                </span>
+              )}
+
+              <span className="text-gray-300">
+                {isSuperAdminUser
+                  ? 'Você possui autoridade total para homologar nutricionistas e médicos parceiros.'
+                  : currentProfessionalPartner
+                  ? `Painel de consultório: ${currentProfessionalPartner.name} (${currentProfessionalPartner.referralCode})`
+                  : `Acompanhamento exclusivo ativo com ${activePatientLink?.professionalName} (${activePatientLink?.discountPercentage}% OFF)`}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isSuperAdminUser && (
+                <>
+                  <button
+                    onClick={() => navigateTo(View.AdminPartners)}
+                    className="bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold px-3 py-1 rounded-lg text-xs transition shadow-sm flex items-center gap-1.5"
+                  >
+                    <i className="fas fa-user-shield"></i>
+                    Gestão de Parceiros
+                  </button>
+                  <button
+                    onClick={() => navigateTo(View.ProfessionalPortal)}
+                    className="bg-teal-500 hover:bg-teal-600 text-teal-950 font-bold px-3 py-1 rounded-lg text-xs transition shadow-sm flex items-center gap-1.5"
+                  >
+                    <i className="fas fa-stethoscope"></i>
+                    Painel Clínico (Nutricionista)
+                  </button>
+                </>
+              )}
+
+              {currentProfessionalPartner && (
+                <button
+                  onClick={() => navigateTo(View.ProfessionalPortal)}
+                  className="bg-teal-500 hover:bg-teal-600 text-teal-950 font-bold px-3 py-1 rounded-lg text-xs transition shadow-sm flex items-center gap-1.5"
+                >
+                  <i className="fas fa-user-doctor"></i>
+                  Portal do Profissional (Pacientes)
+                </button>
+              )}
+
+              {activePatientLink && (
+                <button
+                  onClick={() => setIsPricingModalOpen(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs transition shadow-sm flex items-center gap-1"
+                >
+                  <i className="fas fa-tags"></i>
+                  Ver Plano (65%-70% OFF)
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1">
         <Suspense fallback={<ViewLoadingFallback />}>
           {renderView()}
         </Suspense>
       </div>
+
       <Footer
         onNavigate={navigateTo}
         onOpenCookiePreferences={() => setForceOpenCookieModal(true)}
       />
+
       <CookieConsentBanner
         forceOpenModal={forceOpenCookieModal}
         onModalClose={() => setForceOpenCookieModal(false)}
       />
+
+      {/* Pricing & Referral Code Modal */}
+      {userProfile && (
+        <PricingPlansModal
+          isOpen={isPricingModalOpen}
+          onClose={() => setIsPricingModalOpen(false)}
+          userProfile={userProfile}
+          updateUserProfile={handleUpdateProfile}
+          activePatientLink={activePatientLink}
+          onLinkUpdated={async () => {
+            if (currentUser) {
+              const link = await fetchPatientLinkForUser(currentUser.uid);
+              setActivePatientLink(link);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -10,16 +10,21 @@ export const FirebaseAuthBar: React.FC<FirebaseAuthBarProps> = ({ onUserChanged 
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const onUserChangedRef = React.useRef(onUserChanged);
+  useEffect(() => {
+    onUserChangedRef.current = onUserChanged;
+  }, [onUserChanged]);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setLoading(false);
-      if (onUserChanged) {
-        onUserChanged(user);
+      if (onUserChangedRef.current) {
+        onUserChangedRef.current(user);
       }
     });
     return () => unsubscribe();
-  }, [onUserChanged]);
+  }, []);
 
   const handleLogin = async () => {
     setErrorMsg(null);

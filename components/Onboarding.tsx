@@ -137,6 +137,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ initialProfile, onComplete, onC
     if (!isDiabetic) {
       finalProfile.useInsulin = false;
       finalProfile.useOralMedication = false;
+      finalProfile.trackSupplements = true; // Permite gerenciar suplementação e vitaminas
       finalProfile.glucoseTargetMin = finalProfile.glucoseTargetMin || 70;
       finalProfile.glucoseTargetMax = finalProfile.glucoseTargetMax || 140;
       finalProfile.reminders = [];

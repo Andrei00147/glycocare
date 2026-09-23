@@ -17,6 +17,9 @@ export interface Reminder { // Glucose Reminders
 export interface OralMedication {
   id: string;
   name: string;
+  category?: 'medication' | 'supplement';
+  brand?: string; // Marca / Patrocinador (ex: Growth, Max Titanium, IntegralMedica, Dux, etc.)
+  unit?: 'comprimidos' | 'cápsulas' | 'scoops' | 'doses' | 'gramas' | 'sachês' | 'gotas' | 'unidades';
   stock: number;
   threshold: number;
   dailyDoses: number;
@@ -44,9 +47,12 @@ export interface BioimpedanceData {
   professionalNotes?: string; // Observações e orientações do profissional
 }
 
+export type ClinicalTrack = 'diabetes' | 'nutrition';
+
 export interface UserProfile {
   name: string;
   diabetesType: DiabetesType;
+  clinicalTrack?: ClinicalTrack;
   weightKg?: number;
   heightCm?: number;
   targetWeightKg?: number;
@@ -59,6 +65,7 @@ export interface UserProfile {
   insulinType?: string;
   dailyDoses?: number;
   useOralMedication: boolean;
+  trackSupplements?: boolean; // Usuários que desejam gerenciar estoque de suplementos/vitaminas (Whey, Creatina, etc.)
   oralMedications?: OralMedication[];
   medicationReminders?: MedicationReminder[];
   glucoseTargetMin: number;
@@ -72,6 +79,13 @@ export interface UserProfile {
   reminders: Reminder[];
   remindersGloballyActive: boolean;
   theme: 'light' | 'dark';
+  role?: UserRole;
+  referralCode?: string;
+  referredByProfessionalId?: string;
+  referredByProfessionalName?: string;
+  referredByProfessionalRole?: 'Nutricionista' | 'Médico';
+  discountPercentage?: number;
+  monthlyPlanPrice?: number;
 }
 
 export enum View {
@@ -85,6 +99,89 @@ export enum View {
   PrivacyPolicy,
   TermsOfService,
   CookiePolicy,
+  AdminPartners,
+  ProfessionalPortal,
+  PricingPlans,
+}
+
+export type UserRole = 'patient' | 'nutritionist' | 'doctor' | 'admin';
+
+export interface ProfessionalPartner {
+  id: string;
+  name: string;
+  email: string;
+  role: 'Nutricionista' | 'Médico';
+  specialty: string;
+  registrationNumber: string; // CRN or CRM
+  referralCode: string;
+  defaultTrack?: ClinicalTrack;
+  whatsapp?: string;
+  bio: string;
+  photoUrl?: string;
+  isActive: boolean;
+  assignedUid?: string;
+  createdAt: string;
+  addedByAdmin: string;
+  totalPatients?: number;
+}
+
+export interface PatientLink {
+  id: string;
+  patientUid: string;
+  patientEmail: string;
+  patientName: string;
+  clinicalTrack?: ClinicalTrack;
+  professionalUid?: string;
+  professionalEmail: string;
+  professionalName: string;
+  professionalRole: 'Nutricionista' | 'Médico';
+  referralCode: string;
+  discountPercentage: number; // 65 for nutri, 70 for doctor
+  monthlyPriceBrl: number; // 12.25 or 10.50
+  status: 'active' | 'archived';
+  linkedAt: string;
+  notes?: string;
+}
+
+export interface ConsultationMessage {
+  id: string;
+  patientUid: string;
+  patientEmail: string;
+  patientName: string;
+  professionalEmail: string;
+  professionalName: string;
+  sender: 'patient' | 'professional';
+  message: string;
+  timestamp: string;
+  category?: 'doubt' | 'meal_adjustment' | 'glucose_alert' | 'prescription' | 'general';
+  readByRecipient?: boolean;
+}
+
+export interface ClinicalNote {
+  id: string;
+  patientUid: string;
+  patientEmail: string;
+  patientName: string;
+  professionalEmail: string;
+  professionalName: string;
+  note: string;
+  category?: 'evolution' | 'dietary_plan' | 'glucose_alert' | 'weight_goal' | 'general';
+  tags?: string[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface PricingPlanTier {
+  id: string;
+  name: string;
+  description: string;
+  regularPriceMonthly: number;
+  regularPriceAnnualMonthly: number;
+  discountedPriceMonthly?: number;
+  discountPercent?: number;
+  badge?: string;
+  features: string[];
+  recommendedFor: string;
 }
 
 export interface GlucoseReading {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, GlucoseReading, View, Reminder, MedicationReminder, MealLog, GoalEvaluationResult, SmartMealPairing, WeightLog, DiabetesType } from '../types';
+import { UserProfile, GlucoseReading, View, Reminder, MedicationReminder, MealLog, GoalEvaluationResult, SmartMealPairing, WeightLog, DiabetesType, PatientLink } from '../types';
 import FoodAnalyzer from './FoodAnalyzer';
 import DoseRegistrationModal from './DoseRegistrationModal';
 import GlucoseRegistrationModal from './GlucoseRegistrationModal';
@@ -9,6 +9,8 @@ import SmartMealSuggestionModal from './SmartMealSuggestionModal';
 import WeeklyTrendChart from './WeeklyTrendChart';
 import PartnerSpecialists from './PartnerSpecialists';
 import { evaluateMealsAgainstGoal } from '../services/geminiService';
+import { PARTNER_COUPONS, findBestPartnerCoupon, PartnerCoupon, ENABLE_PARTNER_COUPONS_UI } from '../data/partnerCoupons';
+import { PartnerCouponModal } from './PartnerCouponModal';
 
 interface DashboardProps {
   userProfile: UserProfile;
@@ -23,6 +25,8 @@ interface DashboardProps {
   onAddWeightLog?: (weightKg: number, notes?: string) => void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  activePatientLink?: PatientLink | null;
+  onOpenPricingModal?: () => void;
 }
 
 interface AlertProps {
@@ -85,7 +89,22 @@ const Alert: React.FC<AlertProps> = ({ onManageStock, messages, severity }) => {
 };
 
 
-const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, navigateTo, glucoseReadings, onAddGlucoseReading, mealLogs, onAddMealLog, onRemoveMealLog, weightLogs = [], onAddWeightLog, theme, toggleTheme }) => {
+const Dashboard: React.FC<DashboardProps> = ({
+  userProfile,
+  updateUserProfile,
+  navigateTo,
+  glucoseReadings,
+  onAddGlucoseReading,
+  mealLogs,
+  onAddMealLog,
+  onRemoveMealLog,
+  weightLogs = [],
+  onAddWeightLog,
+  theme,
+  toggleTheme,
+  activePatientLink,
+  onOpenPricingModal
+}) => {
   const [dailyInsulinDoses, setDailyInsulinDoses] = useState(0);
   const [isAnalyzerOpen, setAnalyzerOpen] = useState(false);
   const [isDoseModalOpen, setDoseModalOpen] = useState(false);
@@ -93,6 +112,11 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
   const [isMealModalOpen, setMealModalOpen] = useState(false);
   const [isSmartSuggestionOpen, setSmartSuggestionOpen] = useState(false);
   const [alerts, setAlerts] = useState<{id: string, severity: 'warning' | 'critical', message: string}[]>([]);
+
+  // Partner Coupon Modal State
+  const [isCouponModalOpen, setCouponModalOpen] = useState(false);
+  const [couponTargetItem, setCouponTargetItem] = useState<OralMedication | null>(null);
+  const [couponTargetBrand, setCouponTargetBrand] = useState<PartnerCoupon | null>(null);
 
   const handleSelectSmartPairingFromDashboard = (suggestion: SmartMealPairing) => {
     onAddMealLog(
@@ -117,8 +141,14 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
   const [customDeleteReason, setCustomDeleteReason] = useState<string>('');
 
   const hasDiabetes = useMemo(() => {
-    return userProfile.diabetesType && userProfile.diabetesType !== DiabetesType.None;
-  }, [userProfile.diabetesType]);
+    if (userProfile.clinicalTrack) {
+      return userProfile.clinicalTrack === 'diabetes';
+    }
+    if (userProfile.diabetesType) {
+      return userProfile.diabetesType !== DiabetesType.None;
+    }
+    return Boolean(userProfile.useInsulin || userProfile.useOralMedication);
+  }, [userProfile]);
 
   const activeMealLogs = useMemo(() => {
     return (mealLogs || []).filter(m => !m.isDeleted);
@@ -190,13 +220,26 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
       }
     }
 
-    // Oral Medication Alerts
-    if(userProfile.useOralMedication && userProfile.oralMedications) {
-        userProfile.oralMedications.forEach(med => {
-            if(med.stock <= med.threshold) {
-                newAlerts.push({id: med.id, severity: 'warning', message: `Estoque de ${med.name} está baixo (${med.stock} unidades).`});
-            }
-        });
+    // Oral Medication & Supplements Alerts
+    if (userProfile.oralMedications && userProfile.oralMedications.length > 0) {
+      userProfile.oralMedications.forEach(item => {
+        if (item.stock <= item.threshold) {
+          const isSupp = item.category === 'supplement' || (!hasDiabetes && item.category !== 'medication');
+          if (isSupp) {
+            newAlerts.push({
+              id: item.id,
+              severity: 'warning',
+              message: `Estoque de suplemento (${item.name}) está baixo: restam apenas ${item.stock} ${item.unit || 'doses'}.`
+            });
+          } else if (userProfile.useOralMedication || hasDiabetes) {
+            newAlerts.push({
+              id: item.id,
+              severity: 'warning',
+              message: `Estoque de ${item.name} está baixo (${item.stock} unidades).`
+            });
+          }
+        }
+      });
     }
 
     setAlerts(newAlerts);
@@ -259,9 +302,62 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
   const criticalAlerts = alerts.filter(a => a.severity === 'critical');
   const warningAlerts = alerts.filter(a => a.severity === 'warning');
 
+  const lowStockSupplements = useMemo(() => {
+    return (userProfile.oralMedications || []).filter(item => {
+      const isSupp = item.category === 'supplement' || (!hasDiabetes && item.category !== 'medication');
+      return isSupp && item.stock <= item.threshold;
+    });
+  }, [userProfile.oralMedications, hasDiabetes]);
 
   return (
     <div className="pb-24">
+       {/* Automated Low-Stock Alert with Partner Coupon (Controlled by feature flag until partnerships are signed) */}
+       {ENABLE_PARTNER_COUPONS_UI && lowStockSupplements.length > 0 && (
+          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-white p-3.5 sm:p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-xl text-yellow-300 text-base sm:text-lg flex-shrink-0">
+                <i className="fas fa-ticket-simple"></i>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider bg-black/25 px-2 py-0.5 rounded-full">
+                    Alerta de Reposição & Cupom de Desconto
+                  </span>
+                </div>
+                <p className="text-sm font-bold mt-0.5">
+                  Estoque de {lowStockSupplements[0].name} está acabando ({lowStockSupplements[0].stock} {lowStockSupplements[0].unit || 'doses'} restantes)!
+                </p>
+                <p className="text-xs text-white/90">
+                  Liberamos cupom exclusivo com até <strong>15% OFF</strong> em marcas parceiras para você repor agora.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  const coupon = findBestPartnerCoupon(lowStockSupplements[0]);
+                  setCouponTargetItem(lowStockSupplements[0]);
+                  setCouponTargetBrand(coupon);
+                  setCouponModalOpen(true);
+                }}
+                className="flex-1 sm:flex-initial bg-yellow-300 hover:bg-yellow-400 text-yellow-950 font-black py-2 px-3.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap"
+              >
+                <i className="fas fa-gift"></i>
+                Resgatar Cupom de Reposição
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateTo(View.StockManagement)}
+                className="bg-white/20 hover:bg-white/30 text-white font-bold py-2 px-3 rounded-xl text-xs transition whitespace-nowrap"
+              >
+                Estoque
+              </button>
+            </div>
+          </div>
+       )}
+
        {criticalAlerts.length > 0 && (
           <Alert onManageStock={() => navigateTo(View.StockManagement)} messages={criticalAlerts.map(a => a.message)} severity="critical" />
        )}
@@ -610,7 +706,13 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
 
         {/* Componente de Profissionais e Especialistas Indicados */}
         <div className="md:col-span-2 lg:col-span-3">
-          <PartnerSpecialists userProfile={userProfile} mealLogs={mealLogs} glucoseReadings={glucoseReadings} />
+          <PartnerSpecialists
+            userProfile={userProfile}
+            mealLogs={mealLogs}
+            glucoseReadings={glucoseReadings}
+            activePatientLink={activePatientLink}
+            onOpenPricingModal={onOpenPricingModal}
+          />
         </div>
 
         {/* Refeições Registradas Hoje */}
@@ -675,13 +777,53 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
           </div>
         )}
 
-        {/* Insulin Stock Widget */}
-        {userProfile.useInsulin && (
-             <button onClick={() => navigateTo(View.StockManagement)} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md text-left w-full hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">ESTOQUE DE INSULINA</h2>
-                <p className="text-4xl font-bold text-indigo-500 dark:text-indigo-400">{userProfile.currentInsulinStockUnits || 0} <span className="text-lg font-normal">UI</span></p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">Unidades restantes</p>
-            </button>
+        {/* Stock Widget - Insulin for Diabetics with Insulin, or Supplements for Non-Diabetics/General Users */}
+        {hasDiabetes && userProfile.useInsulin ? (
+          <button onClick={() => navigateTo(View.StockManagement)} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md text-left w-full hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+            <div className="flex justify-between items-center mb-1">
+              <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">ESTOQUE DE INSULINA</h2>
+              <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-full">Gerenciar</span>
+            </div>
+            <p className="text-4xl font-bold text-indigo-500 dark:text-indigo-400">{userProfile.currentInsulinStockUnits || 0} <span className="text-lg font-normal">UI</span></p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Unidades restantes</p>
+          </button>
+        ) : (
+          <button onClick={() => navigateTo(View.StockManagement)} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md text-left w-full hover:bg-gray-50 dark:hover:bg-gray-700 transition flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <i className="fas fa-dumbbell text-teal-600"></i>
+                  {hasDiabetes ? 'Medicamentos & Suplementos' : 'Estoque de Suplementação'}
+                </h2>
+                <span className="text-[10px] font-bold text-teal-600 bg-teal-50 dark:bg-teal-950 px-2 py-0.5 rounded-full">
+                  Gerenciar
+                </span>
+              </div>
+              {userProfile.oralMedications && userProfile.oralMedications.length > 0 ? (
+                <div>
+                  <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
+                    {userProfile.oralMedications.length} {userProfile.oralMedications.length === 1 ? 'item ativo' : 'itens ativos'}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">
+                    {userProfile.oralMedications.map(m => `${m.name} (${m.stock})`).slice(0, 2).join(' • ')}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm font-bold text-gray-800 dark:text-gray-200 mt-1">
+                    Whey, Creatina & Vitaminas
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                    Toque para cadastrar e controlar seus suplementos
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 text-[11px] text-teal-600 dark:text-teal-400 font-semibold flex items-center gap-1">
+              <span>Abrir controle de estoque</span>
+              <i className="fas fa-chevron-right text-[9px]"></i>
+            </div>
+          </button>
         )}
 
         {/* Reminders Widget */}
@@ -861,6 +1003,14 @@ const Dashboard: React.FC<DashboardProps> = ({ userProfile, updateUserProfile, n
           </div>
         </div>
       )}
+
+      {/* Partner Coupon Modal */}
+      <PartnerCouponModal
+        isOpen={isCouponModalOpen}
+        onClose={() => { setCouponModalOpen(false); setCouponTargetItem(null); }}
+        targetItem={couponTargetItem}
+        recommendedCoupon={couponTargetBrand}
+      />
     </div>
   );
 };

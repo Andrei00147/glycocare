@@ -11,6 +11,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.email == 'oliveirandrei001@gmail.com';
+    }
+
     function isValidId(id) {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -32,9 +36,9 @@ service cloud.firestore {
 
     // User Profile Document
     match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow create, update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(request.resource.data);
-      allow delete: if isOwner(userId);
+      allow read: if isOwner(userId) || isSuperAdmin() || isSignedIn();
+      allow create, update: if (isOwner(userId) || isSuperAdmin()) && isValidId(userId) && isValidUserProfile(request.resource.data);
+      allow delete: if isOwner(userId) || isSuperAdmin();
 
       // User Glucose Readings
       function isValidGlucoseReading(data) {
@@ -44,9 +48,9 @@ service cloud.firestore {
       }
 
       match /glucoseReadings/{readingId} {
-        allow read: if isOwner(userId);
-        allow create, update: if isOwner(userId) && isValidGlucoseReading(request.resource.data);
-        allow delete: if isOwner(userId);
+        allow read: if isOwner(userId) || isSuperAdmin() || isSignedIn();
+        allow create, update: if (isOwner(userId) || isSuperAdmin()) && isValidGlucoseReading(request.resource.data);
+        allow delete: if isOwner(userId) || isSuperAdmin();
       }
 
       // User Meal Logs
@@ -58,9 +62,9 @@ service cloud.firestore {
       }
 
       match /mealLogs/{mealId} {
-        allow read: if isOwner(userId);
-        allow create, update: if isOwner(userId) && isValidMealLog(request.resource.data);
-        allow delete: if isOwner(userId);
+        allow read: if isOwner(userId) || isSuperAdmin() || isSignedIn();
+        allow create, update: if (isOwner(userId) || isSuperAdmin()) && isValidMealLog(request.resource.data);
+        allow delete: if isOwner(userId) || isSuperAdmin();
       }
 
       // User Weight Logs
@@ -71,9 +75,9 @@ service cloud.firestore {
       }
 
       match /weightLogs/{weightId} {
-        allow read: if isOwner(userId);
-        allow create, update: if isOwner(userId) && isValidWeightLog(request.resource.data);
-        allow delete: if isOwner(userId);
+        allow read: if isOwner(userId) || isSuperAdmin() || isSignedIn();
+        allow create, update: if (isOwner(userId) || isSuperAdmin()) && isValidWeightLog(request.resource.data);
+        allow delete: if isOwner(userId) || isSuperAdmin();
       }
 
       // User Insulin Doses
@@ -84,9 +88,9 @@ service cloud.firestore {
       }
 
       match /insulinDoses/{doseId} {
-        allow read: if isOwner(userId);
-        allow create, update: if isOwner(userId) && isValidInsulinDose(request.resource.data);
-        allow delete: if isOwner(userId);
+        allow read: if isOwner(userId) || isSuperAdmin() || isSignedIn();
+        allow create, update: if (isOwner(userId) || isSuperAdmin()) && isValidInsulinDose(request.resource.data);
+        allow delete: if isOwner(userId) || isSuperAdmin();
       }
     }
 
@@ -105,6 +109,91 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn() && isValidRecipe(request.resource.data);
       allow update, delete: if isSignedIn() && resource.data.authorUid == request.auth.uid;
+    }
+
+    // Professional Partners (Managed exclusively by SuperAdmin oliveirandrei001@gmail.com)
+    function isValidProfessional(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 150
+        && (data.role == 'Nutricionista' || data.role == 'Médico')
+        && data.specialty is string && data.specialty.size() <= 150
+        && data.registrationNumber is string && data.registrationNumber.size() <= 50
+        && data.referralCode is string && data.referralCode.size() <= 50
+        && data.isActive is bool;
+    }
+
+    match /professionals/{professionalId} {
+      allow read: if true; // Public read so referral codes and directory work seamlessly
+      allow create, update, delete: if isSuperAdmin() && isValidId(professionalId) && isValidProfessional(request.resource.data);
+    }
+
+    // Patient Links (Links between Patients and Nutritionists/Doctors)
+    function isValidPatientLink(data) {
+      return data.patientUid is string && data.patientUid.size() <= 128
+        && data.patientEmail is string && data.patientEmail.size() <= 150
+        && data.professionalEmail is string && data.professionalEmail.size() <= 150
+        && data.professionalName is string && data.professionalName.size() <= 100
+        && (data.professionalRole == 'Nutricionista' || data.professionalRole == 'Médico')
+        && data.referralCode is string && data.referralCode.size() <= 50
+        && (data.status == 'active' || data.status == 'archived');
+    }
+
+    match /patientLinks/{linkId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.patientUid == request.auth.uid ||
+        resource.data.professionalEmail == request.auth.token.email ||
+        resource.data.professionalUid == request.auth.uid
+      );
+      allow create: if isSignedIn() && (
+        isSuperAdmin() ||
+        request.resource.data.patientUid == request.auth.uid ||
+        request.resource.data.professionalEmail == request.auth.token.email
+      ) && isValidId(linkId) && isValidPatientLink(request.resource.data);
+      // Patients cannot unlink by themselves from client; only Professional or SuperAdmin can archive/unlink
+      allow update, delete: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.professionalEmail == request.auth.token.email ||
+        resource.data.professionalUid == request.auth.uid
+      );
+    }
+
+    // Direct Patient <-> Specialist Consultation Messaging
+    match /consultationMessages/{messageId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.patientUid == request.auth.uid ||
+        resource.data.professionalEmail == request.auth.token.email
+      );
+      allow create: if isSignedIn() && isValidId(messageId) && (
+        isSuperAdmin() ||
+        request.resource.data.patientUid == request.auth.uid ||
+        request.resource.data.professionalEmail == request.auth.token.email
+      );
+      allow update, delete: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.patientUid == request.auth.uid ||
+        resource.data.professionalEmail == request.auth.token.email
+      );
+    }
+
+    // Private Clinical Notes recorded by Nutritionists / Doctors
+    match /clinicalNotes/{noteId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.professionalEmail == request.auth.token.email ||
+        resource.data.professionalUid == request.auth.uid
+      );
+      allow create: if isSignedIn() && isValidId(noteId) && (
+        isSuperAdmin() ||
+        request.resource.data.professionalEmail == request.auth.token.email ||
+        request.resource.data.professionalUid == request.auth.uid
+      );
+      allow update, delete: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.professionalEmail == request.auth.token.email ||
+        resource.data.professionalUid == request.auth.uid
+      );
     }
   }
 }

@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
-import { UserProfile, PartnerSpecialist, MealLog, GlucoseReading } from '../types';
+import React, { useState, useEffect } from 'react';
+import { UserProfile, PartnerSpecialist, MealLog, GlucoseReading, PatientLink, ProfessionalPartner } from '../types';
+import { fetchProfessionalPartners } from '../services/firestoreService';
+import PatientDirectCareModal from './PatientDirectCareModal';
 
 interface PartnerSpecialistsProps {
   userProfile: UserProfile;
   mealLogs?: MealLog[];
   glucoseReadings?: GlucoseReading[];
+  activePatientLink?: PatientLink | null;
+  onOpenPricingModal?: () => void;
 }
 
 const DEFAULT_SPECIALISTS: PartnerSpecialist[] = [
@@ -61,14 +65,54 @@ const DEFAULT_SPECIALISTS: PartnerSpecialist[] = [
 export const PartnerSpecialists: React.FC<PartnerSpecialistsProps> = ({
   userProfile,
   mealLogs = [],
-  glucoseReadings = []
+  glucoseReadings = [],
+  activePatientLink,
+  onOpenPricingModal
 }) => {
+  const [specialists, setSpecialists] = useState<PartnerSpecialist[]>(DEFAULT_SPECIALISTS);
   const [selectedRole, setSelectedRole] = useState<'Todos' | 'Médico' | 'Nutricionista' | 'Personal Trainer'>('Todos');
   const [activeModalSpecialist, setActiveModalSpecialist] = useState<PartnerSpecialist | null>(null);
+  const [isDirectCareOpen, setIsDirectCareOpen] = useState(false);
   const [customMsg, setCustomMsg] = useState('');
   const [copiedMsg, setCopiedMsg] = useState(false);
 
-  const filteredSpecialists = DEFAULT_SPECIALISTS.filter(spec => {
+  useEffect(() => {
+    const loadDynamicPartners = async () => {
+      try {
+        const remotePartners = await fetchProfessionalPartners();
+        if (remotePartners && remotePartners.length > 0) {
+          const mapped: PartnerSpecialist[] = remotePartners.map(p => ({
+            id: p.id,
+            name: p.name,
+            role: p.role,
+            specialty: p.specialty,
+            registrationNumber: p.registrationNumber,
+            photoUrl: p.photoUrl || (p.role === 'Médico' ? 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=250' : 'https://images.unsplash.com/photo-1594824813566-88855ce7890b?auto=format&fit=crop&q=80&w=250'),
+            bio: p.bio || 'Profissional parceiro credenciado no NutriSaúdeVital.',
+            whatsapp: p.whatsapp || '5511999990000',
+            supportsMonthlyMonitoring: true,
+            rating: 5.0
+          }));
+          
+          // Merge avoiding duplicates
+          const combined = [...mapped];
+          DEFAULT_SPECIALISTS.forEach(def => {
+            if (!combined.some(c => c.name.toLowerCase() === def.name.toLowerCase())) {
+              combined.push(def);
+            }
+          });
+          setSpecialists(combined);
+        }
+      } catch (err) {
+        console.warn('Usando lista padrão de especialistas:', err);
+      }
+    };
+    loadDynamicPartners();
+  }, []);
+
+  const isLinked = !!activePatientLink && activePatientLink.status === 'active';
+
+  const filteredSpecialists = specialists.filter(spec => {
     if (selectedRole === 'Todos') return true;
     return spec.role === selectedRole;
   });
@@ -76,7 +120,6 @@ export const PartnerSpecialists: React.FC<PartnerSpecialistsProps> = ({
   const handleOpenContactModal = (spec: PartnerSpecialist) => {
     setActiveModalSpecialist(spec);
     
-    // Compute quick metrics summary
     const weightStr = userProfile.weightKg ? `${userProfile.weightKg} kg` : 'não informado';
     const targetWeightStr = userProfile.targetWeightKg ? `${userProfile.targetWeightKg} kg` : 'não definida';
     const muscleTargetStr = userProfile.targetMuscleMassKg ? `${userProfile.targetMuscleMassKg} kg` : 'não definida';
@@ -102,7 +145,7 @@ export const PartnerSpecialists: React.FC<PartnerSpecialistsProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-5 border border-gray-100 dark:border-gray-700 space-y-5">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-5 border border-gray-100 dark:border-gray-700 space-y-5" id="partner-specialists-widget">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b dark:border-gray-700 pb-4">
         <div>
@@ -115,98 +158,170 @@ export const PartnerSpecialists: React.FC<PartnerSpecialistsProps> = ({
                 Especialistas & Profissionais Indicados
               </h3>
               <span className="text-xs text-teal-600 dark:text-teal-400 font-bold bg-teal-50 dark:bg-teal-950/60 px-2.5 py-0.5 rounded-full border border-teal-200 dark:border-teal-800">
-                Acompanhamento Mensal Integrado
+                Acompanhamento Clínico Integrado
               </span>
             </div>
           </div>
           <p className="text-xs text-gray-600 dark:text-gray-300 mt-2 leading-relaxed max-w-2xl">
-            Conecte-se com <strong>médicos, nutricionistas e personal trainers</strong> parceiros. O seu personal trainer utiliza os dados das suas refeições do app para adequar os treinos ao seu aporte calórico e proteico, acelerando o ganho de massa magra e perda de gordura.
+            Conecte-se com médicos e nutricionistas parceiros que utilizam seus registros do NutriSaúdeVital para monitoramento clínico em tempo real.
           </p>
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex flex-wrap gap-1.5 bg-gray-100 dark:bg-gray-700/60 p-1 rounded-xl self-stretch sm:self-auto">
-          {(['Todos', 'Médico', 'Nutricionista', 'Personal Trainer'] as const).map(role => (
-            <button
-              key={role}
-              onClick={() => setSelectedRole(role)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                selectedRole === role
-                  ? 'bg-teal-600 text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              {role === 'Personal Trainer' ? 'Personal Trainers' : role === 'Todos' ? 'Todos' : `${role}s`}
-            </button>
-          ))}
-        </div>
+        {onOpenPricingModal && (
+          <button
+            onClick={onOpenPricingModal}
+            className="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition-all flex items-center gap-2"
+          >
+            <i className="fas fa-tags"></i>
+            {isLinked ? 'Ver Plano com Desconto' : 'Possui Código de Desconto?'}
+          </button>
+        )}
       </div>
 
-      {/* Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredSpecialists.map(spec => (
-          <div
-            key={spec.id}
-            className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30 hover:border-teal-500/50 dark:hover:border-teal-500/50 transition flex flex-col justify-between space-y-3"
-          >
-            <div className="flex items-start gap-3">
-              <img
-                src={spec.photoUrl}
-                alt={spec.name}
-                className="w-14 h-14 rounded-full object-cover border-2 border-teal-500 shadow-sm flex-shrink-0"
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <h4 className="font-bold text-sm text-gray-800 dark:text-gray-100 truncate">
-                    {spec.name}
-                  </h4>
-                  <span className="flex items-center text-amber-500 text-xs font-bold gap-0.5">
-                    <i className="fas fa-star"></i> {spec.rating.toFixed(1)}
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                    spec.role === 'Personal Trainer'
-                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300'
-                      : spec.role === 'Nutricionista'
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
-                      : 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300'
-                  }`}>
-                    {spec.role}
-                  </span>
-                  <span className="text-[10px] text-gray-500 dark:text-gray-400 font-mono">
-                    {spec.registrationNumber}
-                  </span>
-                </div>
-
-                <p className="text-xs font-semibold text-teal-700 dark:text-teal-400 mt-1">
-                  {spec.specialty}
+      {/* Case 1: User is already linked to a specialist -> EXCLUSIVE VIEW */}
+      {isLinked ? (
+        <div className="bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-950/40 dark:to-emerald-950/40 border-2 border-teal-500/40 rounded-2xl p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-2xl shadow-md border-2 border-white dark:border-gray-800">
+                <i className="fas fa-user-doctor"></i>
+              </div>
+              <div>
+                <span className="bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full">
+                  Seu Profissional Responsável
+                </span>
+                <h4 className="text-xl font-black text-gray-900 dark:text-gray-100 mt-0.5">
+                  {activePatientLink.professionalName}
+                </h4>
+                <p className="text-xs text-teal-700 dark:text-teal-300 font-semibold">
+                  {activePatientLink.professionalRole} • Código: {activePatientLink.referralCode}
                 </p>
               </div>
             </div>
 
-            <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed italic bg-white dark:bg-gray-800 p-2.5 rounded-lg border dark:border-gray-700/60">
-              "{spec.bio}"
-            </p>
-
-            <div className="pt-2 flex items-center justify-between gap-2 border-t dark:border-gray-700/60">
-              <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1">
-                <i className="fas fa-calendar-check text-emerald-600"></i>
-                Vagas de Acompanhamento Mensal
-              </span>
-
-              <button
-                onClick={() => handleOpenContactModal(spec)}
-                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5"
-              >
-                <i className="fab fa-whatsapp"></i>
-                Solicitar Acompanhamento
-              </button>
+            <div className="bg-white dark:bg-gray-800 p-3 rounded-xl border border-teal-200 dark:border-teal-800 text-right">
+              <span className="text-[10px] font-bold text-gray-400 uppercase">Seu Benefício Ativo</span>
+              <p className="text-sm font-black text-emerald-600">
+                {activePatientLink.discountPercentage}% OFF (R$ {activePatientLink.monthlyPriceBrl?.toFixed(2).replace('.', ',')}/mês)
+              </p>
             </div>
           </div>
-        ))}
-      </div>
+
+          <div className="bg-white dark:bg-gray-800/80 p-4 rounded-xl text-xs text-gray-700 dark:text-gray-300 space-y-2 border border-teal-100 dark:border-teal-900">
+            <p className="flex items-center gap-2 font-bold text-teal-900 dark:text-teal-200">
+              <i className="fas fa-lock text-teal-600"></i>
+              Acompanhamento Clínico Exclusivo Ativo
+            </p>
+            <p className="text-gray-600 dark:text-gray-400 text-[11px] leading-relaxed">
+              Você está vinculado diretamente ao consultório do(a) <strong>{activePatientLink.professionalName}</strong>. Todos os seus registros alimentares, curvas de glicemia e pesagens são sincronizados diretamente com o painel clínico do seu especialista.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <button
+              onClick={() => setIsDirectCareOpen(true)}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-2"
+            >
+              <i className="fab fa-whatsapp text-base"></i>
+              WhatsApp Clínico (Com Resumo de Hoje)
+            </button>
+
+            <button
+              onClick={() => setIsDirectCareOpen(true)}
+              className="w-full py-3 bg-teal-700 hover:bg-teal-800 text-white font-extrabold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-2"
+            >
+              <i className="fas fa-comments text-sm"></i>
+              Mural de Mensagens & Dúvidas (Chat)
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Case 2: User is not linked -> Show Full Directory */
+        <div className="space-y-4">
+          {/* Filter Pills */}
+          <div className="flex flex-wrap gap-1.5 bg-gray-100 dark:bg-gray-700/60 p-1 rounded-xl self-stretch sm:self-auto">
+            {(['Todos', 'Médico', 'Nutricionista', 'Personal Trainer'] as const).map(role => (
+              <button
+                key={role}
+                onClick={() => setSelectedRole(role)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  selectedRole === role
+                    ? 'bg-teal-600 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {role === 'Personal Trainer' ? 'Personal Trainers' : role === 'Todos' ? 'Todos' : `${role}s`}
+              </button>
+            ))}
+          </div>
+
+          {/* Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredSpecialists.map(spec => (
+              <div
+                key={spec.id}
+                className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30 hover:border-teal-500/50 dark:hover:border-teal-500/50 transition flex flex-col justify-between space-y-3"
+              >
+                <div className="flex items-start gap-3">
+                  <img
+                    src={spec.photoUrl}
+                    alt={spec.name}
+                    className="w-14 h-14 rounded-full object-cover border-2 border-teal-500 shadow-sm flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="font-bold text-sm text-gray-800 dark:text-gray-100 truncate">
+                        {spec.name}
+                      </h4>
+                      <span className="flex items-center text-amber-500 text-xs font-bold gap-0.5">
+                        <i className="fas fa-star"></i> {spec.rating.toFixed(1)}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        spec.role === 'Personal Trainer'
+                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300'
+                          : spec.role === 'Nutricionista'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
+                          : 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300'
+                      }`}>
+                        {spec.role}
+                      </span>
+                      <span className="text-[10px] text-gray-500 dark:text-gray-400 font-mono">
+                        {spec.registrationNumber}
+                      </span>
+                    </div>
+
+                    <p className="text-xs font-semibold text-teal-700 dark:text-teal-400 mt-1">
+                      {spec.specialty}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed italic bg-white dark:bg-gray-800 p-2.5 rounded-lg border dark:border-gray-700/60">
+                  "{spec.bio}"
+                </p>
+
+                <div className="pt-2 flex items-center justify-between gap-2 border-t dark:border-gray-700/60">
+                  <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1">
+                    <i className="fas fa-calendar-check text-emerald-600"></i>
+                    Vagas de Acompanhamento
+                  </span>
+
+                  <button
+                    onClick={() => handleOpenContactModal(spec)}
+                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5"
+                  >
+                    <i className="fab fa-whatsapp"></i>
+                    Solicitar Consulta
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Contact & Report Modal */}
       {activeModalSpecialist && (
@@ -279,6 +394,18 @@ export const PartnerSpecialists: React.FC<PartnerSpecialistsProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Direct Care & WhatsApp Hub Modal for Linked Patients */}
+      {isLinked && activePatientLink && (
+        <PatientDirectCareModal
+          isOpen={isDirectCareOpen}
+          onClose={() => setIsDirectCareOpen(false)}
+          userProfile={userProfile}
+          activePatientLink={activePatientLink}
+          mealLogs={mealLogs}
+          glucoseReadings={glucoseReadings}
+        />
       )}
     </div>
   );

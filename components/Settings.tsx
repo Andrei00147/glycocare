@@ -573,12 +573,24 @@ const Settings: React.FC<SettingsProps> = ({
             )}
             
             {/* Stock Management Shortcut */}
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mt-6">
-                <h2 className="text-xl font-semibold mb-4 border-b dark:border-gray-700 pb-2">Gerenciamento de Estoque</h2>
-                <p className="text-gray-600 dark:text-gray-400 mb-4 text-sm">Acesse para adicionar ou editar seu estoque de insulina e medicamentos.</p>
-                <button onClick={() => navigateTo(View.StockManagement)} className="w-full bg-indigo-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-600 transition duration-300 flex items-center justify-center">
-                    <i className="fas fa-box-open mr-2"></i>
-                    Ir para o Estoque
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mt-6 border border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-2 mb-2">
+                    <i className={`fas ${userProfile.diabetesType !== DiabetesType.None ? 'fa-box-open text-indigo-500' : 'fa-dumbbell text-teal-500'} text-lg`}></i>
+                    <h2 className="text-xl font-semibold">
+                        {userProfile.diabetesType !== DiabetesType.None ? 'Gerenciamento de Estoque' : 'Estoque de Suplementação & Vitaminas'}
+                    </h2>
+                </div>
+                <p className="text-gray-600 dark:text-gray-400 mb-4 text-sm">
+                    {userProfile.diabetesType !== DiabetesType.None 
+                        ? 'Acesse para adicionar ou editar seu estoque de insulina, medicamentos orais e suplementos nutricionais.'
+                        : 'Acesse para gerenciar seu estoque de suplementos nutricionais, vitaminas (Whey Protein, Creatina, Ômega 3, Vitaminas) e receber alertas de reposição.'}
+                </p>
+                <button 
+                    onClick={() => navigateTo(View.StockManagement)} 
+                    className={`w-full ${userProfile.diabetesType !== DiabetesType.None ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-teal-600 hover:bg-teal-700'} text-white font-bold py-3 px-4 rounded-xl transition duration-300 flex items-center justify-center gap-2 shadow`}
+                >
+                    <i className="fas fa-boxes-stacked"></i>
+                    {userProfile.diabetesType !== DiabetesType.None ? 'Ir para o Controle de Estoque' : 'Gerenciar Estoque de Suplementos'}
                 </button>
             </div>
 

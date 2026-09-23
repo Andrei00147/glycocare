@@ -102,9 +102,6 @@ export const CookieConsentBanner: React.FC<{
               <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   Privacidade & Cookies no NutriSaúdeVital
-                  <span className="text-[10px] bg-teal-500/30 text-teal-300 font-semibold px-2 py-0.5 rounded border border-teal-400/30">
-                    LGPD / AdSense Compliant
-                  </span>
                 </h3>
                 <p className="text-xs text-gray-300 mt-1 max-w-3xl leading-relaxed">
                   Utilizamos cookies essenciais para o funcionamento do app, além de cookies de análise (Google Analytics) e anúncios (Google AdSense) para personalizar sua experiência e manter nosso serviço gratuito. Você pode aceitar todos, recusar não essenciais ou personalizar por categoria.
@@ -146,7 +143,7 @@ export const CookieConsentBanner: React.FC<{
                 <i className="fas fa-shield-halved text-2xl text-teal-500"></i>
                 <div>
                   <h2 className="text-xl font-bold">Central de Preferências de Privacidade</h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Conformidade LGPD & Google Consent Mode v2</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Gerencie suas preferências de privacidade e navegação</p>
                 </div>
               </div>
               <button

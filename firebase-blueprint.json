@@ -89,6 +89,48 @@
         "createdAt": { "type": "string" }
       },
       "required": ["title", "author", "description", "ingredients", "instructions", "carbohydrates", "calories"]
+    },
+    "ProfessionalPartner": {
+      "title": "Professional Partner",
+      "description": "Nutritionists and Doctors approved by SuperAdmin",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["Nutricionista", "Médico"] },
+        "specialty": { "type": "string", "maxLength": 150 },
+        "registrationNumber": { "type": "string", "maxLength": 50 },
+        "referralCode": { "type": "string", "maxLength": 50 },
+        "whatsapp": { "type": "string", "maxLength": 30 },
+        "bio": { "type": "string", "maxLength": 1000 },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "isActive": { "type": "boolean" },
+        "assignedUid": { "type": "string", "maxLength": 128 },
+        "addedByAdmin": { "type": "string", "maxLength": 150 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "email", "role", "specialty", "registrationNumber", "referralCode", "isActive"]
+    },
+    "PatientLink": {
+      "title": "Patient Link",
+      "description": "Active clinical link between a patient and a nutritionist/doctor",
+      "type": "object",
+      "properties": {
+        "patientUid": { "type": "string", "maxLength": 128 },
+        "patientEmail": { "type": "string", "maxLength": 150 },
+        "patientName": { "type": "string", "maxLength": 100 },
+        "professionalUid": { "type": "string", "maxLength": 128 },
+        "professionalEmail": { "type": "string", "maxLength": 150 },
+        "professionalName": { "type": "string", "maxLength": 100 },
+        "professionalRole": { "type": "string", "enum": ["Nutricionista", "Médico"] },
+        "referralCode": { "type": "string", "maxLength": 50 },
+        "discountPercentage": { "type": "number" },
+        "monthlyPriceBrl": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "archived"] },
+        "linkedAt": { "type": "string" },
+        "notes": { "type": "string", "maxLength": 1000 }
+      },
+      "required": ["patientUid", "patientEmail", "professionalEmail", "professionalName", "professionalRole", "referralCode", "status", "linkedAt"]
     }
   },
   "firestore": {
@@ -115,6 +157,14 @@
     "/communityRecipes/{recipeId}": {
       "schema": { "$ref": "#/entities/CommunityRecipe" },
       "description": "Shared recipes community collection"
+    },
+    "/professionals/{professionalId}": {
+      "schema": { "$ref": "#/entities/ProfessionalPartner" },
+      "description": "Directory of approved nutritionist and doctor partners"
+    },
+    "/patientLinks/{linkId}": {
+      "schema": { "$ref": "#/entities/PatientLink" },
+      "description": "Patient to professional relationship links"
     }
   }
 }

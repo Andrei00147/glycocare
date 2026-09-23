@@ -20,14 +20,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenCookiePreferen
           <p className="text-gray-400 leading-relaxed text-xs">
             Plataforma integrada de saúde, nutrição, composição corporal, planos de treinos e acompanhamento metabólico contínuo.
           </p>
-          <div className="flex items-center gap-2 pt-2">
-            <span className="bg-teal-900/60 text-teal-300 border border-teal-700/50 text-[10px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
-              <i className="fas fa-shield-check text-teal-400"></i> LGPD & AdSense Ready
-            </span>
-            <span className="bg-blue-900/60 text-blue-300 border border-blue-700/50 text-[10px] font-semibold px-2.5 py-1 rounded-full">
-              Consent Mode v2
-            </span>
-          </div>
         </div>
 
         {/* Coluna 2: Navegação do App */}
@@ -81,8 +73,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenCookiePreferen
               </button>
             </li>
             <li>
-              <button onClick={onOpenCookiePreferences} className="text-amber-400 hover:text-amber-300 transition flex items-center gap-1.5 font-semibold">
-                <i className="fas fa-sliders text-[10px]"></i> Preferências de Cookies (LGPD)
+              <button onClick={onOpenCookiePreferences} className="hover:text-teal-400 transition flex items-center gap-1.5">
+                <i className="fas fa-sliders text-[10px] text-teal-500"></i> Preferências de Cookies
               </button>
             </li>
           </ul>

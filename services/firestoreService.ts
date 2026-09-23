@@ -6,11 +6,20 @@ import {
   getDocs,
   addDoc,
   deleteDoc,
+  updateDoc,
   query,
-  orderBy
+  orderBy,
+  where
 } from 'firebase/firestore';
 import { db, auth, OperationType, handleFirestoreError } from '../src/firebase';
-import { UserProfile, GlucoseReading, MealLog, WeightLog, Recipe } from '../types';
+import { UserProfile, GlucoseReading, MealLog, WeightLog, Recipe, ProfessionalPartner, PatientLink, ConsultationMessage, ClinicalNote } from '../types';
+
+export const SUPER_ADMIN_EMAIL = 'oliveirandrei001@gmail.com';
+
+export function isUserSuperAdmin(email?: string | null): boolean {
+  if (!email) return false;
+  return email.trim().toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+}
 
 // ==========================================
 // Anti-CSRF & Payload Security Helpers
@@ -92,8 +101,24 @@ export async function syncUserProfileToFirestore(userId: string, profile: UserPr
       ...profile,
       name: sanitizeText(profile.name, 100),
       diabetesType: sanitizeText(profile.diabetesType, 100),
+      clinicalTrack: profile.clinicalTrack || undefined,
       healthGoal: sanitizeText(profile.healthGoal, 200),
       insulinType: profile.insulinType ? sanitizeText(profile.insulinType, 100) : undefined,
+      oralMedications: Array.isArray(profile.oralMedications) 
+        ? profile.oralMedications.map(item => ({
+            id: String(item.id || `med-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`),
+            name: sanitizeText(item.name, 100),
+            category: item.category || 'medication',
+            brand: item.brand ? sanitizeText(item.brand, 100) : '',
+            unit: item.unit || 'comprimidos',
+            stock: Number(item.stock) || 0,
+            threshold: Number(item.threshold) || 0,
+            dailyDoses: Number(item.dailyDoses) || 0,
+            source: item.source ? sanitizeText(item.source, 100) : '',
+            cost: Number(item.cost) || 0,
+            expiryDate: item.expiryDate || ''
+          }))
+        : [],
       updatedAt: new Date().toISOString()
     };
 
@@ -355,6 +380,430 @@ export async function fetchRecipesFromFirestore(): Promise<Recipe[]> {
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
     return [];
+  }
+}
+
+// ==========================================
+// Professional Partners Management (SuperAdmin Only)
+// ==========================================
+
+export async function fetchProfessionalPartners(): Promise<ProfessionalPartner[]> {
+  const path = 'professionals';
+  try {
+    const querySnap = await getDocs(collection(db, 'professionals'));
+    const list: ProfessionalPartner[] = [];
+    querySnap.forEach(d => {
+      const data = d.data();
+      list.push({
+        id: d.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        specialty: data.specialty,
+        registrationNumber: data.registrationNumber,
+        referralCode: data.referralCode,
+        whatsapp: data.whatsapp,
+        bio: data.bio,
+        photoUrl: data.photoUrl,
+        isActive: data.isActive !== false,
+        assignedUid: data.assignedUid,
+        createdAt: data.createdAt,
+        addedByAdmin: data.addedByAdmin || 'SuperAdmin'
+      });
+    });
+    return list;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+    return [];
+  }
+}
+
+export async function saveProfessionalPartner(partner: ProfessionalPartner): Promise<void> {
+  const path = `professionals/${partner.id}`;
+  if (!validateCsrfAndOrigin()) {
+    handleFirestoreError(new Error('CSRF/Origin Validation Failed'), OperationType.WRITE, path);
+    return;
+  }
+
+  const currentUserEmail = auth.currentUser?.email || '';
+  if (!isUserSuperAdmin(currentUserEmail)) {
+    handleFirestoreError(new Error('Apenas o SuperAdmin pode adicionar ou editar profissionais parceiros.'), OperationType.WRITE, path);
+    return;
+  }
+
+  try {
+    const cleanDoc = {
+      name: sanitizeText(partner.name, 100),
+      email: sanitizeText(partner.email, 150).toLowerCase(),
+      role: partner.role,
+      specialty: sanitizeText(partner.specialty, 150),
+      registrationNumber: sanitizeText(partner.registrationNumber, 50).toUpperCase(),
+      referralCode: sanitizeText(partner.referralCode, 50).toUpperCase(),
+      whatsapp: partner.whatsapp ? sanitizeText(partner.whatsapp, 30) : '',
+      bio: sanitizeText(partner.bio, 1000),
+      photoUrl: partner.photoUrl ? sanitizeText(partner.photoUrl, 500) : '',
+      isActive: partner.isActive !== false,
+      assignedUid: partner.assignedUid || '',
+      addedByAdmin: currentUserEmail,
+      createdAt: partner.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await setDoc(doc(db, 'professionals', partner.id), cleanDoc, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteProfessionalPartner(partnerId: string): Promise<void> {
+  const path = `professionals/${partnerId}`;
+  if (!validateCsrfAndOrigin()) {
+    handleFirestoreError(new Error('CSRF/Origin Validation Failed'), OperationType.DELETE, path);
+    return;
+  }
+
+  const currentUserEmail = auth.currentUser?.email || '';
+  if (!isUserSuperAdmin(currentUserEmail)) {
+    handleFirestoreError(new Error('Apenas o SuperAdmin pode remover profissionais parceiros.'), OperationType.DELETE, path);
+    return;
+  }
+
+  try {
+    await deleteDoc(doc(db, 'professionals', partnerId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function updatePartnerReferralCode(partnerId: string, newReferralCode: string): Promise<void> {
+  const path = `professionals/${partnerId}`;
+  if (!validateCsrfAndOrigin()) {
+    handleFirestoreError(new Error('CSRF/Origin Validation Failed'), OperationType.WRITE, path);
+    return;
+  }
+
+  try {
+    const cleanCode = sanitizeText(newReferralCode, 60).toUpperCase().replace(/\s+/g, '-');
+    await setDoc(doc(db, 'professionals', partnerId), { referralCode: cleanCode, updatedAt: new Date().toISOString() }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function findPartnerByReferralCode(rawCode: string): Promise<ProfessionalPartner | null> {
+  if (!rawCode) return null;
+  const normalized = rawCode.trim().toUpperCase().replace(/\s+/g, '-');
+  const path = 'professionals';
+
+  try {
+    const q = query(collection(db, 'professionals'), where('referralCode', '==', normalized));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const d = snap.docs[0];
+      const data = d.data();
+      if (data.isActive !== false) {
+        return {
+          id: d.id,
+          name: data.name,
+          email: data.email,
+          role: data.role,
+          specialty: data.specialty,
+          registrationNumber: data.registrationNumber,
+          referralCode: data.referralCode,
+          whatsapp: data.whatsapp,
+          bio: data.bio,
+          photoUrl: data.photoUrl,
+          isActive: true,
+          createdAt: data.createdAt,
+          addedByAdmin: data.addedByAdmin
+        };
+      }
+    }
+    return null;
+  } catch (error) {
+    console.warn('Erro ao buscar parceiro por código:', error);
+    return null;
+  }
+}
+
+// ==========================================
+// Patient Link Management (Exclusive Clinic Link)
+// ==========================================
+
+export async function createOrUpdatePatientLink(link: PatientLink): Promise<void> {
+  const path = `patientLinks/${link.id}`;
+  if (!validateCsrfAndOrigin()) {
+    handleFirestoreError(new Error('CSRF/Origin Validation Failed'), OperationType.WRITE, path);
+    return;
+  }
+
+  try {
+    const payload = {
+      patientUid: link.patientUid,
+      patientEmail: sanitizeText(link.patientEmail, 150).toLowerCase(),
+      patientName: sanitizeText(link.patientName, 100),
+      clinicalTrack: link.clinicalTrack || undefined,
+      professionalUid: link.professionalUid || '',
+      professionalEmail: sanitizeText(link.professionalEmail, 150).toLowerCase(),
+      professionalName: sanitizeText(link.professionalName, 100),
+      professionalRole: link.professionalRole,
+      referralCode: sanitizeText(link.referralCode, 50).toUpperCase(),
+      discountPercentage: Number(link.discountPercentage || 0),
+      monthlyPriceBrl: Number(link.monthlyPriceBrl || 0),
+      status: link.status || 'active',
+      linkedAt: link.linkedAt || new Date().toISOString(),
+      notes: link.notes ? sanitizeText(link.notes, 1000) : ''
+    };
+
+    await setDoc(doc(db, 'patientLinks', link.id), payload, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function fetchPatientLinkForUser(patientUid: string): Promise<PatientLink | null> {
+  const path = 'patientLinks';
+  try {
+    const q = query(
+      collection(db, 'patientLinks'),
+      where('patientUid', '==', patientUid),
+      where('status', '==', 'active')
+    );
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const d = snap.docs[0];
+      const data = d.data();
+      return {
+        id: d.id,
+        patientUid: data.patientUid,
+        patientEmail: data.patientEmail,
+        patientName: data.patientName,
+        clinicalTrack: data.clinicalTrack || undefined,
+        professionalUid: data.professionalUid,
+        professionalEmail: data.professionalEmail,
+        professionalName: data.professionalName,
+        professionalRole: data.professionalRole,
+        referralCode: data.referralCode,
+        discountPercentage: data.discountPercentage,
+        monthlyPriceBrl: data.monthlyPriceBrl,
+        status: data.status,
+        linkedAt: data.linkedAt,
+        notes: data.notes
+      };
+    }
+    return null;
+  } catch (error) {
+    console.warn('Nenhum vínculo ativo encontrado:', error);
+    return null;
+  }
+}
+
+export async function fetchPatientsForProfessional(professionalEmail: string): Promise<PatientLink[]> {
+  const path = 'patientLinks';
+  try {
+    const q = query(
+      collection(db, 'patientLinks'),
+      where('professionalEmail', '==', professionalEmail.trim().toLowerCase()),
+      where('status', '==', 'active')
+    );
+    const snap = await getDocs(q);
+    const list: PatientLink[] = [];
+    snap.forEach(d => {
+      const data = d.data();
+      list.push({
+        id: d.id,
+        patientUid: data.patientUid,
+        patientEmail: data.patientEmail,
+        patientName: data.patientName,
+        clinicalTrack: data.clinicalTrack || undefined,
+        professionalUid: data.professionalUid,
+        professionalEmail: data.professionalEmail,
+        professionalName: data.professionalName,
+        professionalRole: data.professionalRole,
+        referralCode: data.referralCode,
+        discountPercentage: data.discountPercentage,
+        monthlyPriceBrl: data.monthlyPriceBrl,
+        status: data.status,
+        linkedAt: data.linkedAt,
+        notes: data.notes
+      });
+    });
+    return list;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+    return [];
+  }
+}
+
+export async function archiveOrUnlinkPatient(linkId: string): Promise<void> {
+  const path = `patientLinks/${linkId}`;
+  if (!validateCsrfAndOrigin()) {
+    handleFirestoreError(new Error('CSRF/Origin Validation Failed'), OperationType.UPDATE, path);
+    return;
+  }
+
+  try {
+    await updateDoc(doc(db, 'patientLinks', linkId), {
+      status: 'archived',
+      archivedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+// Fetch complete clinical dossier for a linked patient
+export async function fetchPatientClinicalDossier(patientUid: string) {
+  try {
+    const [profile, readings, meals, weights] = await Promise.all([
+      fetchUserProfileFromFirestore(patientUid),
+      fetchGlucoseReadingsFromFirestore(patientUid),
+      fetchMealLogsFromFirestore(patientUid),
+      fetchWeightLogsFromFirestore(patientUid)
+    ]);
+
+    return {
+      profile,
+      readings,
+      meals,
+      weights
+    };
+  } catch (error) {
+    console.error('Erro ao carregar prontuário do paciente:', error);
+    return null;
+  }
+}
+
+// ==========================================
+// Patient <-> Specialist Consultation Messaging
+// ==========================================
+
+export async function sendConsultationMessage(msg: ConsultationMessage): Promise<void> {
+  const path = `consultationMessages/${msg.id}`;
+  if (!validateCsrfAndOrigin()) {
+    handleFirestoreError(new Error('CSRF/Origin Validation Failed'), OperationType.CREATE, path);
+    return;
+  }
+
+  try {
+    const cleanPayload = {
+      ...msg,
+      timestamp: msg.timestamp || new Date().toISOString(),
+      readByRecipient: msg.readByRecipient ?? false
+    };
+    await setDoc(doc(db, 'consultationMessages', msg.id), cleanPayload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export async function fetchConsultationMessages(patientUid: string, professionalEmail?: string): Promise<ConsultationMessage[]> {
+  try {
+    const q = query(
+      collection(db, 'consultationMessages'),
+      where('patientUid', '==', patientUid),
+      orderBy('timestamp', 'asc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => d.data() as ConsultationMessage);
+  } catch (error) {
+    console.warn('Consultation messages query error:', error);
+    return [];
+  }
+}
+
+export async function markConsultationMessagesAsRead(patientUid: string, readerRole: 'patient' | 'professional'): Promise<void> {
+  try {
+    const senderToMark = readerRole === 'patient' ? 'professional' : 'patient';
+    const q = query(
+      collection(db, 'consultationMessages'),
+      where('patientUid', '==', patientUid),
+      where('sender', '==', senderToMark)
+    );
+    const snapshot = await getDocs(q);
+    const updates = snapshot.docs.map(d => updateDoc(d.ref, { readByRecipient: true }));
+    await Promise.all(updates);
+  } catch (error) {
+    console.warn('Error marking messages as read:', error);
+  }
+}
+
+// ==========================================
+// Nutritionist & Doctor Private Clinical Notes
+// ==========================================
+
+export async function savePatientClinicalNote(note: ClinicalNote): Promise<void> {
+  const path = `clinicalNotes/${note.id}`;
+  if (!validateCsrfAndOrigin()) {
+    handleFirestoreError(new Error('CSRF/Origin Validation Failed'), OperationType.CREATE, path);
+    return;
+  }
+
+  try {
+    const payload = {
+      ...note,
+      createdAt: note.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await setDoc(doc(db, 'clinicalNotes', note.id), payload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export async function fetchPatientClinicalNotes(patientUid: string, professionalEmail?: string): Promise<ClinicalNote[]> {
+  try {
+    let q;
+    if (professionalEmail) {
+      q = query(
+        collection(db, 'clinicalNotes'),
+        where('patientUid', '==', patientUid),
+        where('professionalEmail', '==', professionalEmail.trim().toLowerCase()),
+        orderBy('createdAt', 'desc')
+      );
+    } else {
+      q = query(
+        collection(db, 'clinicalNotes'),
+        where('patientUid', '==', patientUid),
+        orderBy('createdAt', 'desc')
+      );
+    }
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => d.data() as ClinicalNote);
+  } catch (error) {
+    console.warn('Error fetching clinical notes:', error);
+    return [];
+  }
+}
+
+export async function deletePatientClinicalNote(noteId: string): Promise<void> {
+  const path = `clinicalNotes/${noteId}`;
+  if (!validateCsrfAndOrigin()) {
+    handleFirestoreError(new Error('CSRF/Origin Validation Failed'), OperationType.DELETE, path);
+    return;
+  }
+
+  try {
+    await deleteDoc(doc(db, 'clinicalNotes', noteId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function updatePatientLinkNotes(linkId: string, notes: string): Promise<void> {
+  const path = `patientLinks/${linkId}`;
+  if (!validateCsrfAndOrigin()) {
+    handleFirestoreError(new Error('CSRF/Origin Validation Failed'), OperationType.UPDATE, path);
+    return;
+  }
+
+  try {
+    await updateDoc(doc(db, 'patientLinks', linkId), {
+      notes: notes.trim(),
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
 

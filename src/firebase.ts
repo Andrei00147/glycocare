@@ -1,14 +1,22 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { initializeFirestore, doc, getDoc } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// CRITICAL: Must pass firestoreDatabaseId and enable long-polling for restricted network environments/iframes
-export const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
-}, firebaseConfig.firestoreDatabaseId);
+// Initialize Firestore with resilient cache and auto long-polling for iframe/cloud run network sandboxes
+export const db = initializeFirestore(
+  app,
+  {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+    experimentalAutoDetectLongPolling: true,
+  },
+  firebaseConfig.firestoreDatabaseId || undefined
+);
+
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -47,16 +55,5 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   };
   console.warn('Firestore Operation Notice (Operating with local cache if offline):', errInfo.error);
 }
-
-export async function testConnection() {
-  try {
-    const testDoc = doc(db, 'test', 'connection');
-    await getDoc(testDoc);
-  } catch (error) {
-    console.warn("Firestore connection check info:", error instanceof Error ? error.message : error);
-  }
-}
-
-testConnection();
 
 export { signInWithPopup, signOut, onAuthStateChanged, type User };

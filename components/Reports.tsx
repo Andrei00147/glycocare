@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { UserProfile, GlucoseReading, MealLog, WeightLog } from '../types';
+import { UserProfile, GlucoseReading, MealLog, WeightLog, DiabetesType } from '../types';
 
 interface ReportsProps {
   userProfile: UserProfile;
@@ -220,6 +220,16 @@ export const Reports: React.FC<ReportsProps> = ({
     };
   }, [glucoseReadings, mealLogs, weightLogs, userProfile.weightKg]);
 
+  const isDiabetic = useMemo(() => {
+    if (userProfile.clinicalTrack) {
+      return userProfile.clinicalTrack === 'diabetes';
+    }
+    if (userProfile.diabetesType) {
+      return userProfile.diabetesType !== DiabetesType.None;
+    }
+    return Boolean(userProfile.useInsulin || userProfile.useOralMedication);
+  }, [userProfile]);
+
   // Render Charts with Chart.js
   useEffect(() => {
     if (!(window as any).Chart) return;
@@ -228,8 +238,8 @@ export const Reports: React.FC<ReportsProps> = ({
     const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)';
     const textColor = isDarkMode ? '#E5E7EB' : '#374151';
 
-    // 1. Glucose Trend Chart
-    if (glucoseChartRef.current) {
+    // 1. Glucose Trend Chart (Diabetics only)
+    if (isDiabetic && glucoseChartRef.current) {
       if (glucoseChartInstance.current) glucoseChartInstance.current.destroy();
       const ctx = glucoseChartRef.current.getContext('2d');
       if (ctx && filteredGlucose.length > 0) {
@@ -249,7 +259,7 @@ export const Reports: React.FC<ReportsProps> = ({
               label: 'Glicemia (mg/dL)',
               data,
               borderColor: '#0D9488',
-              backgroundColor: 'rgba(13, 148, 136, 0.1)',
+              backgroundColor: 'rgba(139, 92, 246, 0.15)',
               pointBackgroundColor: pointColors,
               pointBorderColor: pointColors,
               pointRadius: 5,
@@ -376,18 +386,26 @@ export const Reports: React.FC<ReportsProps> = ({
       if (weeklyComparisonChartInstance.current) weeklyComparisonChartInstance.current.destroy();
       const ctx = weeklyComparisonChartRef.current.getContext('2d');
       if (ctx) {
+        const labels = isDiabetic
+          ? ['Glicemia Média (mg/dL)', 'Calorias Diárias (kcal)', 'Peso Médio (kg)']
+          : ['Proteínas Diárias (g)', 'Calorias Diárias (kcal)', 'Peso Médio (kg)'];
+
+        const currData = isDiabetic
+          ? [weeklyComparisonStats.currGlucoseAvg, weeklyComparisonStats.currCalAvg, weeklyComparisonStats.currWeightAvg]
+          : [nutritionTotals.avgDailyProteins, weeklyComparisonStats.currCalAvg, weeklyComparisonStats.currWeightAvg];
+
+        const prevData = isDiabetic
+          ? [weeklyComparisonStats.prevGlucoseAvg, weeklyComparisonStats.prevCalAvg, weeklyComparisonStats.prevWeightAvg]
+          : [nutritionTotals.avgDailyProteins, weeklyComparisonStats.prevCalAvg, weeklyComparisonStats.prevWeightAvg];
+
         weeklyComparisonChartInstance.current = new (window as any).Chart(ctx, {
           type: 'bar',
           data: {
-            labels: ['Glicemia Média (mg/dL)', 'Calorias Diárias (kcal)', 'Peso Médio (kg)'],
+            labels,
             datasets: [
               {
                 label: 'Esta Semana (Últimos 7 dias)',
-                data: [
-                  weeklyComparisonStats.currGlucoseAvg,
-                  weeklyComparisonStats.currCalAvg,
-                  weeklyComparisonStats.currWeightAvg
-                ],
+                data: currData,
                 backgroundColor: '#0D9488', // Teal
                 borderColor: '#0F766E',
                 borderWidth: 1,
@@ -395,11 +413,7 @@ export const Reports: React.FC<ReportsProps> = ({
               },
               {
                 label: 'Semana Anterior (Dias 8-14)',
-                data: [
-                  weeklyComparisonStats.prevGlucoseAvg,
-                  weeklyComparisonStats.prevCalAvg,
-                  weeklyComparisonStats.prevWeightAvg
-                ],
+                data: prevData,
                 backgroundColor: '#94A3B8', // Slate Gray
                 borderColor: '#64748B',
                 borderWidth: 1,
@@ -428,7 +442,7 @@ export const Reports: React.FC<ReportsProps> = ({
                     const label = context.dataset.label || '';
                     const val = context.parsed.y;
                     const idx = context.dataIndex;
-                    const units = ['mg/dL', 'kcal/dia', 'kg'];
+                    const units = isDiabetic ? ['mg/dL', 'kcal/dia', 'kg'] : ['g/dia', 'kcal/dia', 'kg'];
                     return ` ${label}: ${val} ${units[idx] || ''}`;
                   }
                 }
@@ -588,57 +602,99 @@ export const Reports: React.FC<ReportsProps> = ({
 
           <div className="text-left md:text-right bg-gray-50 dark:bg-gray-700/50 p-3 rounded-xl border dark:border-gray-600 text-xs">
             <p className="font-bold text-gray-800 dark:text-gray-200">{userProfile.name}</p>
-            <p className="text-gray-600 dark:text-gray-400">Diabetes: <strong>{userProfile.diabetesType}</strong></p>
-            <p className="text-gray-600 dark:text-gray-400">Meta Glicêmica: {userProfile.glucoseTargetMin} - {userProfile.glucoseTargetMax} mg/dL</p>
+            {isDiabetic ? (
+              <>
+                <p className="text-rose-600 dark:text-rose-400 font-semibold">Diabetes: <strong>{userProfile.diabetesType}</strong></p>
+                <p className="text-gray-600 dark:text-gray-400">Meta Glicêmica: {userProfile.glucoseTargetMin} - {userProfile.glucoseTargetMax} mg/dL</p>
+              </>
+            ) : (
+              <>
+                <p className="text-emerald-600 dark:text-emerald-400 font-semibold">Perfil: <strong>Sem Diabetes (Nutrição & Prevenção)</strong></p>
+                <p className="text-gray-600 dark:text-gray-400">Objetivo: <strong>{userProfile.healthGoal || 'Reeducação Alimentar'}</strong></p>
+              </>
+            )}
           </div>
         </div>
 
         {/* Executive Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Card 1: Glucose Summary */}
-          <div className="p-4 rounded-xl bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-gray-700/80 dark:to-gray-700/40 border border-teal-200 dark:border-gray-600">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-xs font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider flex items-center gap-1.5">
-                <i className="fas fa-chart-line text-teal-600"></i> Tendência Glicêmica
-              </span>
-              <span className="text-[11px] bg-teal-200 dark:bg-teal-900/60 text-teal-900 dark:text-teal-200 px-2 py-0.5 rounded-full font-bold">
-                {filteredGlucose.length} leituras
-              </span>
+          {/* Card 1: Glucose Summary (Diabetic) OR Protein & Macro Density (Non-Diabetic) */}
+          {isDiabetic ? (
+            <div className="p-4 rounded-xl bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-gray-700/80 dark:to-gray-700/40 border border-teal-200 dark:border-gray-600">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <i className="fas fa-chart-line text-teal-600"></i> Tendência Glicêmica
+                </span>
+                <span className="text-[11px] bg-teal-200 dark:bg-teal-900/60 text-teal-900 dark:text-teal-200 px-2 py-0.5 rounded-full font-bold">
+                  {filteredGlucose.length} leituras
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className={`text-3xl font-extrabold ${
+                  averageGlucose > userProfile.glucoseTargetMax ? 'text-red-600 dark:text-red-400' :
+                  averageGlucose < userProfile.glucoseTargetMin ? 'text-blue-600 dark:text-blue-400' :
+                  'text-teal-600 dark:text-teal-400'
+                }`}>
+                  {averageGlucose > 0 ? averageGlucose : '--'}
+                </span>
+                <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">mg/dL (média)</span>
+              </div>
+              <div className="mt-3 text-xs space-y-1 border-t border-teal-200/60 dark:border-gray-600 pt-2 text-gray-700 dark:text-gray-300">
+                <p className="flex justify-between">
+                  <span>Na Meta ({userProfile.glucoseTargetMin}-{userProfile.glucoseTargetMax}):</span>
+                  <strong className="text-emerald-600 dark:text-emerald-400">{glucoseDistribution.normal}</strong>
+                </p>
+                <p className="flex justify-between">
+                  <span>Acima da Meta:</span>
+                  <strong className="text-red-500">{glucoseDistribution.high}</strong>
+                </p>
+                <p className="flex justify-between">
+                  <span>Abaixo da Meta:</span>
+                  <strong className="text-blue-500">{glucoseDistribution.low}</strong>
+                </p>
+              </div>
             </div>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className={`text-3xl font-extrabold ${
-                averageGlucose > userProfile.glucoseTargetMax ? 'text-red-600 dark:text-red-400' :
-                averageGlucose < userProfile.glucoseTargetMin ? 'text-blue-600 dark:text-blue-400' :
-                'text-teal-600 dark:text-teal-400'
-              }`}>
-                {averageGlucose > 0 ? averageGlucose : '--'}
-              </span>
-              <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">mg/dL (média)</span>
+          ) : (
+            <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-gray-700/80 dark:to-gray-700/40 border border-indigo-200 dark:border-gray-600">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <i className="fas fa-dumbbell text-indigo-600"></i> Proteínas Diárias
+                </span>
+                <span className="text-[11px] bg-indigo-200 dark:bg-indigo-900/60 text-indigo-900 dark:text-indigo-200 px-2 py-0.5 rounded-full font-bold">
+                  {nutritionTotals.avgDailyProteins}g / dia
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-3xl font-extrabold text-indigo-600 dark:text-indigo-400">
+                  {(nutritionTotals.avgDailyProteins / (userProfile.weightKg || 70)).toFixed(1)}
+                </span>
+                <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">g / kg corporal</span>
+              </div>
+              <div className="mt-3 text-xs space-y-1 border-t border-indigo-200/60 dark:border-gray-600 pt-2 text-gray-700 dark:text-gray-300">
+                <p className="flex justify-between">
+                  <span>Gorduras Médias:</span>
+                  <strong className="text-amber-600 dark:text-amber-400">{nutritionTotals.avgDailyFats}g / dia</strong>
+                </p>
+                <p className="flex justify-between">
+                  <span>Açúcares Simples:</span>
+                  <strong className="text-rose-500">{nutritionTotals.avgDailySugars}g / dia</strong>
+                </p>
+                <p className="flex justify-between">
+                  <span>Total de Refeições:</span>
+                  <strong className="text-teal-600 dark:text-teal-400">{nutritionTotals.totalMeals} refeições</strong>
+                </p>
+              </div>
             </div>
-            <div className="mt-3 text-xs space-y-1 border-t border-teal-200/60 dark:border-gray-600 pt-2 text-gray-700 dark:text-gray-300">
-              <p className="flex justify-between">
-                <span>Na Meta ({userProfile.glucoseTargetMin}-{userProfile.glucoseTargetMax}):</span>
-                <strong className="text-emerald-600 dark:text-emerald-400">{glucoseDistribution.normal}</strong>
-              </p>
-              <p className="flex justify-between">
-                <span>Acima da Meta:</span>
-                <strong className="text-red-500">{glucoseDistribution.high}</strong>
-              </p>
-              <p className="flex justify-between">
-                <span>Abaixo da Meta:</span>
-                <strong className="text-blue-500">{glucoseDistribution.low}</strong>
-              </p>
-            </div>
-          </div>
+          )}
 
           {/* Card 2: Meals & Nutrition Summary */}
           <div className="p-4 rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-700/80 dark:to-gray-700/40 border border-orange-200 dark:border-gray-600">
             <div className="flex justify-between items-center mb-2">
               <span className="text-xs font-bold text-orange-800 dark:text-orange-300 uppercase tracking-wider flex items-center gap-1.5">
-                <i className="fas fa-utensils text-orange-600"></i> Registro de Refeições
+                <i className="fas fa-utensils text-orange-600"></i> Consumo & Calorias
               </span>
               <span className="text-[11px] bg-orange-200 dark:bg-orange-900/60 text-orange-900 dark:text-orange-200 px-2 py-0.5 rounded-full font-bold">
-                {nutritionTotals.totalMeals} refeições
+                {nutritionTotals.avgDailyCalories} kcal / dia
               </span>
             </div>
             <div className="flex items-baseline gap-2 mt-1">
@@ -715,7 +771,9 @@ export const Reports: React.FC<ReportsProps> = ({
                 </h3>
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Análise comparativa das médias de glicemia, ingestão calórica diária e progressão de peso corporal (Chart.js).
+                {isDiabetic
+                  ? 'Análise comparativa das médias de glicemia, ingestão calórica diária e progressão de peso corporal (Chart.js).'
+                  : 'Análise comparativa de ingestão proteica, calorias diárias e progressão de peso corporal (Chart.js).'}
               </p>
             </div>
             <span className="text-[11px] font-bold bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 px-3 py-1 rounded-full border border-teal-300 dark:border-teal-700">
@@ -725,34 +783,56 @@ export const Reports: React.FC<ReportsProps> = ({
 
           {/* Comparative Summary Metrics Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Metric 1: Glucose Avg */}
-            <div className="bg-white dark:bg-gray-700/60 p-3.5 rounded-xl border dark:border-gray-600 shadow-sm">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-300 block mb-1">
-                <i className="fas fa-droplet text-teal-500 mr-1"></i> Glicemia Média
-              </span>
-              <div className="flex items-baseline justify-between">
-                <div>
-                  <span className="text-2xl font-black text-gray-800 dark:text-gray-100">
-                    {weeklyComparisonStats.currGlucoseAvg > 0 ? weeklyComparisonStats.currGlucoseAvg : '--'}
-                  </span>
-                  <span className="text-xs font-semibold text-gray-500 ml-1">mg/dL</span>
+            {/* Metric 1: Glucose Avg (Diabetic) OR Protein Avg (Non-diabetic) */}
+            {isDiabetic ? (
+              <div className="bg-white dark:bg-gray-700/60 p-3.5 rounded-xl border dark:border-gray-600 shadow-sm">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-300 block mb-1">
+                  <i className="fas fa-droplet text-teal-500 mr-1"></i> Glicemia Média
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <div>
+                    <span className="text-2xl font-black text-gray-800 dark:text-gray-100">
+                      {weeklyComparisonStats.currGlucoseAvg > 0 ? weeklyComparisonStats.currGlucoseAvg : '--'}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-500 ml-1">mg/dL</span>
+                  </div>
+                  <div className={`text-xs font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 ${
+                    weeklyComparisonStats.glucoseDelta < 0 ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300' :
+                    weeklyComparisonStats.glucoseDelta > 0 ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300' :
+                    'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                  }`}>
+                    <i className={`fas ${
+                      weeklyComparisonStats.glucoseDelta < 0 ? 'fa-arrow-down' :
+                      weeklyComparisonStats.glucoseDelta > 0 ? 'fa-arrow-up' : 'fa-equals'
+                    } text-[10px]`}></i>
+                    <span>{Math.abs(weeklyComparisonStats.glucoseDelta)} mg/dL</span>
+                  </div>
                 </div>
-                <div className={`text-xs font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 ${
-                  weeklyComparisonStats.glucoseDelta < 0 ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300' :
-                  weeklyComparisonStats.glucoseDelta > 0 ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300' :
-                  'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                }`}>
-                  <i className={`fas ${
-                    weeklyComparisonStats.glucoseDelta < 0 ? 'fa-arrow-down' :
-                    weeklyComparisonStats.glucoseDelta > 0 ? 'fa-arrow-up' : 'fa-equals'
-                  } text-[10px]`}></i>
-                  <span>{Math.abs(weeklyComparisonStats.glucoseDelta)} mg/dL</span>
-                </div>
+                <p className="text-[10px] text-gray-400 dark:text-gray-400 mt-1">
+                  Semana anterior: <strong>{weeklyComparisonStats.prevGlucoseAvg > 0 ? `${weeklyComparisonStats.prevGlucoseAvg} mg/dL` : 'Sem dados'}</strong>
+                </p>
               </div>
-              <p className="text-[10px] text-gray-400 dark:text-gray-400 mt-1">
-                Semana anterior: <strong>{weeklyComparisonStats.prevGlucoseAvg > 0 ? `${weeklyComparisonStats.prevGlucoseAvg} mg/dL` : 'Sem dados'}</strong>
-              </p>
-            </div>
+            ) : (
+              <div className="bg-white dark:bg-gray-700/60 p-3.5 rounded-xl border dark:border-gray-600 shadow-sm">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 block mb-1">
+                  <i className="fas fa-dumbbell text-indigo-500 mr-1"></i> Proteínas Médias
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <div>
+                    <span className="text-2xl font-black text-gray-800 dark:text-gray-100">
+                      {nutritionTotals.avgDailyProteins}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-500 ml-1">g/dia</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                    {(nutritionTotals.avgDailyProteins / (userProfile.weightKg || 70)).toFixed(1)} g/kg
+                  </span>
+                </div>
+                <p className="text-[10px] text-gray-400 dark:text-gray-400 mt-1">
+                  Metabolismo estrutural & composição
+                </p>
+              </div>
+            )}
 
             {/* Metric 2: Caloric Intake */}
             <div className="bg-white dark:bg-gray-700/60 p-3.5 rounded-xl border dark:border-gray-600 shadow-sm">
@@ -819,24 +899,26 @@ export const Reports: React.FC<ReportsProps> = ({
           </div>
         </div>
 
-        {/* Section 1: Glucose Trend Chart */}
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <h3 className="text-base font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-              <i className="fas fa-wave-square text-teal-500"></i>
-              Gráfico de Tendência Glicêmica ({filterPeriod} Dias)
-            </h3>
+        {/* Section 1: Glucose Trend Chart (Only for Diabetics) */}
+        {isDiabetic && (
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                <i className="fas fa-wave-square text-teal-500"></i>
+                Gráfico de Tendência Glicêmica ({filterPeriod} Dias)
+              </h3>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-700/40 p-4 rounded-xl border dark:border-gray-700 h-64 md:h-72">
+              {filteredGlucose.length > 0 ? (
+                <canvas ref={glucoseChartRef}></canvas>
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+                  Nenhuma leitura glicêmica registrada nos últimos {filterPeriod} dias.
+                </div>
+              )}
+            </div>
           </div>
-          <div className="bg-gray-50 dark:bg-gray-700/40 p-4 rounded-xl border dark:border-gray-700 h-64 md:h-72">
-            {filteredGlucose.length > 0 ? (
-              <canvas ref={glucoseChartRef}></canvas>
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-400 text-sm">
-                Nenhuma leitura glicêmica registrada nos últimos {filterPeriod} dias.
-              </div>
-            )}
-          </div>
-        </div>
+        )}
 
         {/* Section 2: Weight Fluctuation Chart */}
         <div className="space-y-3">
